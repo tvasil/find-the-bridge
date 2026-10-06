@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#12181d">
+    <meta name="description" content="Connect two distant ideas, one word at a time.">
+    <title>Find the Bridge</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#game" aria-label="Find the Bridge home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Find the Bridge</span>
+        </a>
+        <details class="rules">
+          <summary>How to play</summary>
+          <div class="rules-card">
+            <p>Add one word at a time. It must connect to your current word and move you closer to the destination.</p>
+            <p>After three bridges, make the final crossing when you're close enough. You have six bridges at most.</p>
+          </div>
+        </details>
+      </header>
+
+      <main id="game" class="game-layout" aria-busy="true">
+        <section class="play-card" aria-labelledby="puzzle-title">
+          <div class="puzzle-meta">
+            <span id="puzzle-number" class="eyebrow">Puzzle 01 / 04</span>
+            <button id="next-puzzle" class="text-button" type="button">Switch puzzle</button>
+          </div>
+
+          <div class="destination-lockup">
+            <div>
+              <span class="endpoint-label">Start</span>
+              <strong id="start-word">volcano</strong>
+            </div>
+            <div class="bridge-icon" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="endpoint-end">
+              <span class="endpoint-label">Destination</span>
+              <strong id="end-word">bank</strong>
+            </div>
+          </div>
+
+          <div class="mission-line">
+            <h1 id="puzzle-title">Build a path between ideas.</h1>
+            <p id="instruction">Loading the word map…</p>
+          </div>
+
+          <div id="route-track" class="route-track" aria-label="Your word route"></div>
+
+          <form id="guess-form" class="guess-form" autocomplete="off">
+            <label for="guess-input">Your next bridge</label>
+            <div class="input-row">
+              <input id="guess-input" name="guess" type="text" inputmode="text" list="word-list" maxlength="28" placeholder="Type one word" aria-describedby="feedback" disabled>
+              <datalist id="word-list"></datalist>
+              <button id="place-word" class="primary-button" type="submit" disabled>Place word</button>
+            </div>
+            <div class="form-foot">
+              <p id="feedback" class="feedback" aria-live="polite">Preparing 4,000 words…</p>
+              <span id="moves-left" class="moves-left">6 bridges left</span>
+            </div>
+          </form>
+
+          <div class="play-actions">
+            <button id="undo-word" class="secondary-button" type="button" disabled>Undo last</button>
+            <button id="finish-route" class="finish-button" type="button" disabled>Get closer to finish</button>
+          </div>
+        </section>
+
+        <aside class="session-card" aria-labelledby="session-title">
+          <div class="session-heading">
+            <div>
+              <span class="eyebrow">Local play</span>
+              <h2 id="session-title">This session</h2>
+            </div>
+            <span id="session-count" class="count-badge">0</span>
+          </div>
+          <div id="session-empty" class="empty-history">
+            <span aria-hidden="true">◎</span>
+            <p>Your completed routes will collect here until you close the tab.</p>
+          </div>
+          <ol id="session-history" class="session-history" aria-label="Previous scores"></ol>
+        </aside>
+
+        <section id="results" class="results" aria-labelledby="results-title" hidden>
+          <div class="result-summary">
+            <div class="score-stamp" aria-label="Overall route score">
+              <strong id="score-value">0</strong>
+              <span>/ 100</span>
+            </div>
+            <div>
+              <span class="eyebrow">Route complete</span>
+              <h2 id="results-title">You found the bridge.</h2>
+              <p id="score-note"></p>
+            </div>
+            <button id="play-again" class="primary-button" type="button">Try another puzzle</button>
+          </div>
+
+          <div class="result-grid">
+            <section class="step-panel" aria-labelledby="step-title">
+              <div class="panel-heading">
+                <h3 id="step-title">Every crossing</h3>
+                <span>Cosine similarity</span>
+              </div>
+              <ol id="step-list" class="step-list"></ol>
+            </section>
+
+            <section class="map-panel" aria-labelledby="map-title">
+              <div class="panel-heading">
+                <h3 id="map-title">The semantic map</h3>
+                <span id="map-status">Hover a route word</span>
+              </div>
+              <canvas id="semantic-map" aria-label="Animated two-dimensional projection of the route"></canvas>
+              <p class="map-note">This 2D PCA view is only an approximation of the 50-dimensional space used to score the route.</p>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
