@@ -22,7 +22,12 @@ const elements = {
   endWord: document.querySelector("#end-word"),
   instruction: document.querySelector("#instruction"),
   routeTrack: document.querySelector("#route-track"),
+  playCard: document.querySelector(".play-card"),
+  crossingReady: document.querySelector("#crossing-ready"),
+  crossingCurrent: document.querySelector("#crossing-current"),
+  crossingEnd: document.querySelector("#crossing-end"),
   form: document.querySelector("#guess-form"),
+  guessLabel: document.querySelector("#guess-label"),
   input: document.querySelector("#guess-input"),
   placeWord: document.querySelector("#place-word"),
   wordList: document.querySelector("#word-list"),
@@ -49,7 +54,7 @@ let projection;
 let indexByWord;
 let mapAnimation;
 let mapHitTargets = [];
-let state = { puzzleIndex: 0, bridges: [], finished: false };
+let state = { puzzleIndex: 0, bridges: [], finished: false, finishReady: false };
 
 function currentPuzzle() { return puzzles[state.puzzleIndex]; }
 function indexOf(word) { return indexByWord.get(word); }
@@ -94,16 +99,38 @@ function renderRoute() {
 
 function renderPuzzle() {
   const puzzle = currentPuzzle();
+  const finishEligible = !state.finished && canFinish();
+  const justUnlocked = finishEligible && !state.finishReady;
+  state.finishReady = finishEligible;
   elements.puzzleNumber.textContent = `Puzzle ${String(state.puzzleIndex + 1).padStart(2, "0")} / ${String(puzzles.length).padStart(2, "0")}`;
   elements.startWord.textContent = puzzle.start;
   elements.endWord.textContent = puzzle.end;
-  elements.input.placeholder = `A word near “${currentWord()}”`;
+  elements.input.placeholder = finishEligible ? `Or try a word near “${currentWord()}”` : `A word near “${currentWord()}”`;
   elements.input.value = "";
   elements.input.disabled = state.finished || state.bridges.length >= MAX_BRIDGES;
   elements.placeWord.disabled = elements.input.disabled;
   elements.undo.disabled = state.finished || state.bridges.length === 0;
-  elements.finish.disabled = state.finished || !canFinish();
-  elements.finish.textContent = canFinish() ? `Connect to ${puzzle.end}` : "Get closer to finish";
+  elements.finish.disabled = state.finished || !finishEligible;
+  elements.finish.textContent = finishEligible ? `Connect to ${puzzle.end}` : "Get closer to finish";
+  elements.finish.classList.toggle("is-ready", finishEligible);
+  elements.guessLabel.textContent = finishEligible ? "Optional: add another bridge" : "Your next bridge";
+  elements.placeWord.textContent = finishEligible ? "Add optional word" : "Place word";
+  elements.crossingReady.hidden = !finishEligible;
+  elements.crossingCurrent.textContent = `“${currentWord()}”`;
+  elements.crossingEnd.textContent = `“${puzzle.end}”`;
+  elements.playCard.classList.toggle("route-ready", finishEligible);
+  if (justUnlocked) {
+    elements.crossingReady.classList.remove("celebrate");
+    elements.finish.classList.remove("celebrate");
+    requestAnimationFrame(() => {
+      elements.crossingReady.classList.add("celebrate");
+      elements.finish.classList.add("celebrate");
+    });
+    setTimeout(() => {
+      elements.crossingReady.classList.remove("celebrate");
+      elements.finish.classList.remove("celebrate");
+    }, 2400);
+  }
   elements.movesLeft.textContent = `${MAX_BRIDGES - state.bridges.length} bridge${MAX_BRIDGES - state.bridges.length === 1 ? "" : "s"} left`;
 
   if (state.finished) {
@@ -113,8 +140,8 @@ function renderPuzzle() {
   } else if (state.bridges.length < MIN_BRIDGES) {
     const remaining = MIN_BRIDGES - state.bridges.length;
     elements.instruction.textContent = `Move from ${currentWord()} toward ${puzzle.end}. Place ${remaining} more before the final crossing.`;
-  } else if (canFinish()) {
-    elements.instruction.textContent = `You’re close enough to ${puzzle.end}. Cross now, or add another bridge.`;
+  } else if (finishEligible) {
+    elements.instruction.textContent = `You’ve reached the landing zone. Cross now, or add an optional bridge.`;
   } else {
     elements.instruction.textContent = `Keep moving closer to ${puzzle.end}. Your next word must still connect to ${currentWord()}.`;
   }
@@ -154,14 +181,14 @@ function attemptWord(rawWord) {
   const verdict = canAcceptWord({ nextSimilarity: jump, nextToEndSimilarity: wordToEnd, previousToEndSimilarity: previousToEnd });
   if (!verdict.accepted) {
     const detail = verdict.reason.includes("away")
-      ? `${verdict.reason} “${word}” is ${(wordToEnd * 100).toFixed(0)}% aligned with ${puzzle.end}; beat ${(previousToEnd * 100).toFixed(0)}%.`
-      : `${verdict.reason} The ${previous} → ${word} similarity is ${jump.toFixed(2)}.`;
+      ? `That heads in the wrong direction. “${word}” is less connected to “${puzzle.end}” than “${previous}” is.`
+      : `That jump is too wide. “${word}” isn’t connected enough to “${previous}”.`;
     setFeedback(detail, "bad");
     return { accepted: false, reason: detail, similarity: jump };
   }
 
   state.bridges.push(word);
-  setFeedback(`${stepLabel(jump)} move · ${previous} → ${word} scored ${jump.toFixed(2)}.`, "good");
+  setFeedback(`${stepLabel(jump)} move. “${word}” brings you closer to “${puzzle.end}”.`, "good");
   renderPuzzle();
   elements.input.focus();
   return {
@@ -243,7 +270,7 @@ function renderResults(route, steps, score) {
 }
 
 function resetPuzzle(index = state.puzzleIndex) {
-  state = { puzzleIndex: (index + puzzles.length) % puzzles.length, bridges: [], finished: false };
+  state = { puzzleIndex: (index + puzzles.length) % puzzles.length, bridges: [], finished: false, finishReady: false };
   elements.results.hidden = true;
   setFeedback("Enter a word and press Enter. Wide leaps are allowed, but only if they move toward the goal.");
   renderPuzzle();

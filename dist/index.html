@@ -51,8 +51,16 @@
 
           <div id="route-track" class="route-track" aria-label="Your word route"></div>
 
+          <div id="crossing-ready" class="crossing-ready" role="status" aria-live="polite" hidden>
+            <div class="crossing-signal" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div>
+              <strong>Final crossing unlocked</strong>
+              <span><b id="crossing-current">Your word</b> is close enough to <b id="crossing-end">the destination</b>.</span>
+            </div>
+          </div>
+
           <form id="guess-form" class="guess-form" autocomplete="off">
-            <label for="guess-input">Your next bridge</label>
+            <label id="guess-label" for="guess-input">Your next bridge</label>
             <div class="input-row">
               <input id="guess-input" name="guess" type="text" inputmode="text" list="word-list" maxlength="28" placeholder="Type one word" aria-describedby="feedback" disabled>
               <datalist id="word-list"></datalist>

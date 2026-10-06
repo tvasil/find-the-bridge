@@ -65,6 +65,8 @@ The `0.20` threshold deliberately permits lateral “leap” guesses. It is isol
 
 The final crossing becomes available after three bridge words when the current word has at least `0.34` similarity to the destination. If the player reaches six words without that proximity, they can undo and try another direction.
 
+When the final crossing unlocks, the interface announces it with a short animation and makes further bridge words explicitly optional. Exact similarity values remain hidden during play so the player reasons about words rather than optimizing a visible metric; the completed results reveal the overall score and every step similarity.
+
 ## Scoring
 
 Cosine similarity is transformed into step quality on a 0–1 scale. That mapping is a product choice, not a standard embedding formula; it makes raw similarities easier to combine and tune for a game.
