@@ -3,10 +3,11 @@ import {
   MIN_BRIDGES,
   MIN_FINISH_SIMILARITY,
   canAcceptWord,
+  classifyDirection,
   cosineInt8,
   scoreRoute,
   stepLabel,
-} from "./scoring.mjs";
+} from "./scoring.mjs?v=3";
 
 const puzzles = [
   { id: "volcano-bank", start: "volcano", end: "bank" },
@@ -21,6 +22,9 @@ const elements = {
   startWord: document.querySelector("#start-word"),
   endWord: document.querySelector("#end-word"),
   instruction: document.querySelector("#instruction"),
+  goalPull: document.querySelector("#goal-pull"),
+  goalPullFill: document.querySelector("#goal-pull-fill"),
+  goalPullLabel: document.querySelector("#goal-pull-label"),
   routeTrack: document.querySelector("#route-track"),
   playCard: document.querySelector(".play-card"),
   crossingReady: document.querySelector("#crossing-ready"),
@@ -54,6 +58,9 @@ let projection;
 let indexByWord;
 let mapAnimation;
 let mapHitTargets = [];
+let activeMapRoute = [];
+let activeMapSteps = [];
+let selectedStepIndex = null;
 let state = { puzzleIndex: 0, bridges: [], finished: false, finishReady: false };
 
 function currentPuzzle() { return puzzles[state.puzzleIndex]; }
@@ -66,6 +73,45 @@ function currentWord() { return state.bridges.at(-1) ?? currentPuzzle().start; }
 function finishSimilarity() { return similarity(currentWord(), currentPuzzle().end); }
 function canFinish() {
   return state.bridges.length >= MIN_BRIDGES && finishSimilarity() >= MIN_FINISH_SIMILARITY;
+}
+
+const directionValue = { closer: 1, sideways: 0.55, detour: 0.15 };
+
+function routeDirections() {
+  const puzzle = currentPuzzle();
+  const bridgeRoute = [puzzle.start, ...state.bridges];
+  return bridgeRoute.slice(1).map((word, index) => classifyDirection(
+    similarity(word, puzzle.end),
+    similarity(bridgeRoute[index], puzzle.end),
+  ));
+}
+
+function setEndpointScale(element, word) {
+  element.classList.toggle("long-word", word.length >= 8);
+  element.classList.toggle("very-long-word", word.length >= 11);
+}
+
+function renderGoalPull() {
+  const puzzle = currentPuzzle();
+  const startingSimilarity = similarity(puzzle.start, puzzle.end);
+  const currentSimilarity = finishSimilarity();
+  const range = Math.max(0.01, MIN_FINISH_SIMILARITY - startingSimilarity);
+  const progress = Math.max(0, Math.min(1, (currentSimilarity - startingSimilarity) / range));
+  const percent = Math.round(progress * 100);
+  const lastDirection = routeDirections().at(-1);
+  const label = canFinish()
+    ? "Landing zone reached"
+    : lastDirection === "closer"
+      ? "Moving closer"
+      : lastDirection === "sideways"
+        ? "Moving sideways"
+        : lastDirection === "detour"
+          ? "On a detour"
+          : "Starting point";
+  elements.goalPullFill.style.width = `${percent}%`;
+  elements.goalPullLabel.textContent = label;
+  elements.goalPull.setAttribute("aria-valuenow", String(percent));
+  elements.goalPull.setAttribute("aria-valuetext", label);
 }
 
 function setFeedback(message, tone = "") {
@@ -86,7 +132,7 @@ function renderRoute() {
   ];
   elements.routeTrack.replaceChildren(...nodes.map(({ label, word, className }) => {
     const node = document.createElement("div");
-    node.className = `route-node ${className}`.trim();
+    node.className = `route-node ${className}${word.length >= 9 ? " long-word" : ""}`.trim();
     node.title = word === "—" ? `${label} is empty` : word;
     const small = document.createElement("small");
     small.textContent = label;
@@ -105,6 +151,8 @@ function renderPuzzle() {
   elements.puzzleNumber.textContent = `Puzzle ${String(state.puzzleIndex + 1).padStart(2, "0")} / ${String(puzzles.length).padStart(2, "0")}`;
   elements.startWord.textContent = puzzle.start;
   elements.endWord.textContent = puzzle.end;
+  setEndpointScale(elements.startWord, puzzle.start);
+  setEndpointScale(elements.endWord, puzzle.end);
   elements.input.placeholder = finishEligible ? `Or try a word near “${currentWord()}”` : `A word near “${currentWord()}”`;
   elements.input.value = "";
   elements.input.disabled = state.finished || state.bridges.length >= MAX_BRIDGES;
@@ -143,8 +191,9 @@ function renderPuzzle() {
   } else if (finishEligible) {
     elements.instruction.textContent = `You’ve reached the landing zone. Cross now, or add an optional bridge.`;
   } else {
-    elements.instruction.textContent = `Keep moving closer to ${puzzle.end}. Your next word must still connect to ${currentWord()}.`;
+    elements.instruction.textContent = `Find a word connected to ${currentWord()}. A sideways move or detour is allowed.`;
   }
+  renderGoalPull();
   renderRoute();
 }
 
@@ -178,17 +227,21 @@ function attemptWord(rawWord) {
   const jump = similarity(previous, word);
   const previousToEnd = similarity(previous, puzzle.end);
   const wordToEnd = similarity(word, puzzle.end);
-  const verdict = canAcceptWord({ nextSimilarity: jump, nextToEndSimilarity: wordToEnd, previousToEndSimilarity: previousToEnd });
+  const verdict = canAcceptWord({ nextSimilarity: jump });
   if (!verdict.accepted) {
-    const detail = verdict.reason.includes("away")
-      ? `That heads in the wrong direction. “${word}” is less connected to “${puzzle.end}” than “${previous}” is.`
-      : `That jump is too wide. “${word}” isn’t connected enough to “${previous}”.`;
+    const detail = `That jump is too wide. “${word}” isn’t connected enough to “${previous}”.`;
     setFeedback(detail, "bad");
     return { accepted: false, reason: detail, similarity: jump };
   }
 
   state.bridges.push(word);
-  setFeedback(`${stepLabel(jump)} move. “${word}” brings you closer to “${puzzle.end}”.`, "good");
+  const direction = classifyDirection(wordToEnd, previousToEnd);
+  const directionFeedback = {
+    closer: [`Closer. “${word}” pulls you toward “${puzzle.end}”.`, "good"],
+    sideways: [`Sideways. “${word}” keeps you about the same distance from “${puzzle.end}”.`, "neutral"],
+    detour: [`Detour. “${word}” moves away from “${puzzle.end}”, but the connection holds.`, "warn"],
+  };
+  setFeedback(...directionFeedback[direction]);
   renderPuzzle();
   elements.input.focus();
   return {
@@ -197,6 +250,7 @@ function attemptWord(rawWord) {
     route: [puzzle.start, ...state.bridges],
     jumpSimilarity: Number(jump.toFixed(3)),
     destinationSimilarity: Number(wordToEnd.toFixed(3)),
+    direction,
     canFinish: canFinish(),
   };
 }
@@ -235,7 +289,11 @@ function completeRoute() {
   const puzzle = currentPuzzle();
   const route = [puzzle.start, ...state.bridges, puzzle.end];
   const steps = route.slice(0, -1).map((word, index) => similarity(word, route[index + 1]));
-  const score = scoreRoute(steps, state.bridges.length, 1);
+  const directions = routeDirections();
+  const progressionFraction = directions.length
+    ? directions.reduce((sum, direction) => sum + directionValue[direction], 0) / directions.length
+    : 1;
+  const score = scoreRoute(steps, state.bridges.length, progressionFraction);
   state.finished = true;
   renderPuzzle();
   renderResults(route, steps, score);
@@ -245,39 +303,69 @@ function completeRoute() {
 
 function renderResults(route, steps, score) {
   elements.results.hidden = false;
+  activeMapRoute = route;
+  activeMapSteps = steps;
+  selectedStepIndex = null;
   elements.scoreValue.textContent = score;
   const weakest = Math.min(...steps);
   const weakestIndex = steps.indexOf(weakest);
   const label = score >= 78 ? "Elegant and steady." : score >= 58 ? "A convincing route." : "A daring route with a wide jump.";
-  elements.scoreNote.textContent = `${label} Your weakest link was ${route[weakestIndex]} → ${route[weakestIndex + 1]} at ${weakest.toFixed(2)} similarity.`;
+  const directionCounts = routeDirections().reduce((counts, direction) => ({ ...counts, [direction]: counts[direction] + 1 }), { closer: 0, sideways: 0, detour: 0 });
+  const directionSummary = [
+    directionCounts.closer && `${directionCounts.closer} closer`,
+    directionCounts.sideways && `${directionCounts.sideways} sideways`,
+    directionCounts.detour && `${directionCounts.detour} detour${directionCounts.detour === 1 ? "" : "s"}`,
+  ].filter(Boolean).join(" · ");
+  elements.scoreNote.textContent = `${label} Your weakest link was ${route[weakestIndex]} → ${route[weakestIndex + 1]} at ${weakest.toFixed(2)} similarity. ${directionSummary}.`;
   elements.stepList.replaceChildren(...steps.map((value, index) => {
     const row = document.createElement("li");
     row.className = `step-row${index === weakestIndex ? " weakest" : ""}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "step-button";
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("aria-label", `Trace ${route[index]} to ${route[index + 1]}, ${value.toFixed(2)} similarity${index === weakestIndex ? ", weakest link" : ""}`);
     const pair = document.createElement("div");
     pair.className = "step-pair";
     pair.append(document.createTextNode(route[index]), Object.assign(document.createElement("span"), { textContent: " → " }), document.createTextNode(route[index + 1]));
+    if (index === weakestIndex) pair.append(Object.assign(document.createElement("small"), { className: "weakest-note", textContent: "Weakest link" }));
     const number = document.createElement("span");
     number.className = "step-score";
     number.textContent = value.toFixed(2);
     const badge = document.createElement("span");
     badge.className = "step-label";
     badge.textContent = stepLabel(value);
-    row.append(pair, number, badge);
+    button.append(pair, number, badge);
+    button.addEventListener("click", () => selectStep(index, route, steps));
+    row.append(button);
     return row;
   }));
+  elements.mapStatus.textContent = "Select a crossing to trace it";
   drawSemanticMap(route);
   elements.results.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
 
 function resetPuzzle(index = state.puzzleIndex) {
   state = { puzzleIndex: (index + puzzles.length) % puzzles.length, bridges: [], finished: false, finishReady: false };
+  activeMapRoute = [];
+  activeMapSteps = [];
+  selectedStepIndex = null;
   elements.results.hidden = true;
-  setFeedback("Enter a word and press Enter. Wide leaps are allowed, but only if they move toward the goal.");
+  setFeedback("Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
   renderPuzzle();
   elements.input.focus();
 }
 
-function drawSemanticMap(route) {
+function selectStep(index, route, steps) {
+  selectedStepIndex = index;
+  elements.stepList.querySelectorAll(".step-button").forEach((button, buttonIndex) => {
+    button.setAttribute("aria-pressed", String(buttonIndex === index));
+  });
+  elements.mapStatus.textContent = `${route[index]} → ${route[index + 1]} · ${steps[index].toFixed(2)} similarity`;
+  drawSemanticMap(route, index, false);
+}
+
+function drawSemanticMap(route, highlightedStep = selectedStepIndex, animate = true) {
   cancelAnimationFrame(mapAnimation);
   const canvas = elements.canvas;
   const context = canvas.getContext("2d");
@@ -298,7 +386,7 @@ function drawSemanticMap(route) {
   };
   const routePoints = route.map(pointFor);
   const started = performance.now();
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = !animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function frame(now) {
     const progress = reduced ? 1 : Math.min(1, (now - started) / 1150);
@@ -328,12 +416,27 @@ function drawSemanticMap(route) {
     }
     context.stroke();
 
+    if (Number.isInteger(highlightedStep) && progress === 1) {
+      const selectedStart = routePoints[highlightedStep];
+      const selectedEnd = routePoints[highlightedStep + 1];
+      context.beginPath();
+      context.moveTo(selectedStart.x, selectedStart.y);
+      context.lineTo(selectedEnd.x, selectedEnd.y);
+      context.lineWidth = 8;
+      context.strokeStyle = "#ff7358";
+      context.stroke();
+      context.lineWidth = 3;
+      context.strokeStyle = "#ffffff";
+      context.stroke();
+    }
+
     mapHitTargets = [];
     routePoints.forEach((point, index) => {
       if (index > segmentProgress + 0.12) return;
-      const color = index === 0 ? "#ff7358" : index === routePoints.length - 1 ? "#4de0c1" : "#ffffff";
+      const isSelected = index === highlightedStep || index === highlightedStep + 1;
+      const color = isSelected ? "#ff7358" : index === 0 ? "#ff7358" : index === routePoints.length - 1 ? "#4de0c1" : "#ffffff";
       context.beginPath();
-      context.arc(point.x, point.y, index === 0 || index === routePoints.length - 1 ? 7 : 5.5, 0, Math.PI * 2);
+      context.arc(point.x, point.y, isSelected ? 8 : index === 0 || index === routePoints.length - 1 ? 7 : 5.5, 0, Math.PI * 2);
       context.fillStyle = color;
       context.fill();
       context.strokeStyle = "#12181d";
@@ -416,12 +519,17 @@ elements.canvas.addEventListener("pointermove", (event) => {
   const y = event.clientY - bounds.top;
   const match = mapHitTargets.find((target) => Math.hypot(target.x - x, target.y - y) <= target.radius);
   elements.canvas.style.cursor = match ? "crosshair" : "default";
-  elements.mapStatus.textContent = match ? match.word : "Hover a route word";
+  if (match) elements.mapStatus.textContent = match.word;
+  else if (selectedStepIndex === null) elements.mapStatus.textContent = "Select a crossing to trace it";
+  else {
+    const left = activeMapRoute[selectedStepIndex];
+    const right = activeMapRoute[selectedStepIndex + 1];
+    elements.mapStatus.textContent = `${left} → ${right} · ${activeMapSteps[selectedStepIndex].toFixed(2)} similarity`;
+  }
 });
 new ResizeObserver(() => {
   if (!elements.results.hidden) {
-    const puzzle = currentPuzzle();
-    drawSemanticMap([puzzle.start, ...state.bridges, puzzle.end]);
+    drawSemanticMap(activeMapRoute, selectedStepIndex, false);
   }
 }).observe(elements.canvas);
 
@@ -443,7 +551,7 @@ async function initialize() {
     elements.game.setAttribute("aria-busy", "false");
     elements.input.disabled = false;
     elements.placeWord.disabled = false;
-    setFeedback("Enter a word and press Enter. Wide leaps are allowed, but only if they move toward the goal.");
+    setFeedback("Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
     renderHistory();
     renderPuzzle();
     registerWebMcp();

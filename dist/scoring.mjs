@@ -2,6 +2,7 @@ export const MIN_JUMP_SIMILARITY = 0.2;
 export const MIN_FINISH_SIMILARITY = 0.34;
 export const MIN_BRIDGES = 3;
 export const MAX_BRIDGES = 6;
+export const DIRECTION_EPSILON = 0.03;
 
 export function cosineInt8(vectors, dimensions, leftIndex, rightIndex) {
   let dot = 0;
@@ -30,9 +31,15 @@ export function stepLabel(similarity) {
   return "Too far";
 }
 
-export function canAcceptWord({ nextSimilarity, nextToEndSimilarity, previousToEndSimilarity }) {
+export function classifyDirection(nextToEndSimilarity, previousToEndSimilarity) {
+  const change = nextToEndSimilarity - previousToEndSimilarity;
+  if (change >= DIRECTION_EPSILON) return "closer";
+  if (change <= -DIRECTION_EPSILON) return "detour";
+  return "sideways";
+}
+
+export function canAcceptWord({ nextSimilarity }) {
   if (nextSimilarity < MIN_JUMP_SIMILARITY) return { accepted: false, reason: "That jump is too far apart." };
-  if (nextToEndSimilarity <= previousToEndSimilarity + 0.004) return { accepted: false, reason: "That word moves away from the destination." };
   return { accepted: true };
 }
 
@@ -46,7 +53,7 @@ export function scoreRoute(stepSimilarities, bridgeCount, progressionFraction = 
   const variance = qualities.reduce((sum, value) => sum + (value - mean) ** 2, 0) / qualities.length;
   const consistency = mean * Math.max(0, 1 - Math.sqrt(variance) / 0.42);
   const continuity = 0.5 * geometricMean + 0.35 * weakest + 0.15 * consistency;
-  const progression = 0.94 + 0.06 * Math.max(0, Math.min(1, progressionFraction));
+  const progression = 0.86 + 0.14 * Math.max(0, Math.min(1, progressionFraction));
   const efficiency = Math.max(0.86, 1 - 0.035 * Math.max(0, bridgeCount - MIN_BRIDGES));
   return Math.round(100 * continuity * progression * efficiency);
 }

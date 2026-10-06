@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   MIN_FINISH_SIMILARITY,
   canAcceptWord,
+  classifyDirection,
   cosineInt8,
 } from "../dist/scoring.mjs";
 
@@ -37,5 +38,12 @@ for (const route of knownRoutes) {
   }
   assert.ok(similarity(route.at(-2), destination) >= MIN_FINISH_SIMILARITY, `${route.at(-2)} should reach ${destination}`);
 }
+
+assert.equal(canAcceptWord({ nextSimilarity: similarity("country", "parliament") }).accepted, true);
+assert.equal(
+  classifyDirection(similarity("parliament", "democracy"), similarity("country", "democracy")),
+  "detour",
+  "country → parliament should be an accepted detour",
+);
 
 console.log("Embedding and puzzle-route checks passed");

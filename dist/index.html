@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=3">
   </head>
   <body>
     <div class="page-shell">
@@ -19,7 +19,7 @@
         <details class="rules">
           <summary>How to play</summary>
           <div class="rules-card">
-            <p>Add one word at a time. It must connect to your current word and move you closer to the destination.</p>
+            <p>Add one word at a time. It must connect to your current word. Closer moves, sideways moves, and detours are all allowed.</p>
             <p>After three bridges, make the final crossing when you're close enough. You have six bridges at most.</p>
           </div>
         </details>
@@ -47,6 +47,18 @@
           <div class="mission-line">
             <h1 id="puzzle-title">Build a path between ideas.</h1>
             <p id="instruction">Loading the word map…</p>
+          </div>
+
+          <div id="goal-pull" class="goal-pull" role="progressbar" aria-label="Progress toward the destination" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="goal-pull-heading">
+              <span>Destination pull</span>
+              <strong id="goal-pull-label">Starting point</strong>
+            </div>
+            <div class="goal-pull-track" aria-hidden="true">
+              <span id="goal-pull-fill"></span>
+              <i></i>
+            </div>
+            <div class="goal-pull-scale" aria-hidden="true"><span>Start</span><span>Landing zone</span></div>
           </div>
 
           <div id="route-track" class="route-track" aria-label="Your word route"></div>
@@ -111,15 +123,16 @@
             <section class="step-panel" aria-labelledby="step-title">
               <div class="panel-heading">
                 <h3 id="step-title">Every crossing</h3>
-                <span>Cosine similarity</span>
+                <span>Select one to trace it</span>
               </div>
+              <p class="step-help">Each row is one semantic jump. Select one to spotlight it on the map; the weakest link is marked.</p>
               <ol id="step-list" class="step-list"></ol>
             </section>
 
             <section class="map-panel" aria-labelledby="map-title">
               <div class="panel-heading">
                 <h3 id="map-title">The semantic map</h3>
-                <span id="map-status">Hover a route word</span>
+                <span id="map-status">Select a crossing to trace it</span>
               </div>
               <canvas id="semantic-map" aria-label="Animated two-dimensional projection of the route"></canvas>
               <p class="map-note">This 2D PCA view is only an approximation of the 50-dimensional space used to score the route.</p>
@@ -128,6 +141,6 @@
         </section>
       </main>
     </div>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=3"></script>
   </body>
 </html>

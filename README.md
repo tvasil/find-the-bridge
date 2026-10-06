@@ -2,7 +2,7 @@
 
 A small browser game about connecting distant ideas with a short chain of words.
 
-The player starts with one word and enters bridge words one at a time. A word is accepted only when it is semantically close enough to the current word and moves the route closer to the destination. After at least three accepted bridges, the player can finish when the current word is close enough to the destination. Each puzzle allows at most six bridge words.
+The player starts with one word and enters bridge words one at a time. A word is accepted when it is semantically close enough to the current word. The game labels each accepted move as **Closer**, **Sideways**, or **Detour** based on its relationship to the destination. After at least three accepted bridges, the player can finish when the current word is close enough to the destination. Each puzzle allows at most six bridge words.
 
 ## Run locally
 
@@ -59,13 +59,12 @@ Words are submitted sequentially instead of filling every slot in advance. A bri
 1. It exists in the fixed vocabulary.
 2. It has not already appeared in the route.
 3. Its cosine similarity to the current word is at least `0.20`.
-4. Its similarity to the destination is greater than the current word's similarity to the destination.
 
-The `0.20` threshold deliberately permits lateral “leap” guesses. It is isolated in `scoring.mjs` so playtesting can tune it without changing the interface.
+The `0.20` threshold deliberately permits lateral “leap” guesses. It is isolated in `scoring.mjs` so playtesting can tune it without changing the interface. Progress toward the destination is guidance rather than a gate: a move is **Closer** when destination similarity rises by at least `0.03`, **Detour** when it falls by at least `0.03`, and **Sideways** in between. This lets players take meaningful lateral routes without accepting unrelated words.
 
 The final crossing becomes available after three bridge words when the current word has at least `0.34` similarity to the destination. If the player reaches six words without that proximity, they can undo and try another direction.
 
-When the final crossing unlocks, the interface announces it with a short animation and makes further bridge words explicitly optional. Exact similarity values remain hidden during play so the player reasons about words rather than optimizing a visible metric; the completed results reveal the overall score and every step similarity.
+During play, a destination-pull meter and the three direction labels show progress without exposing raw embedding values. When the final crossing unlocks, the interface announces it with a short animation and makes further bridge words explicitly optional. Exact similarity values remain hidden during play so the player reasons about words rather than optimizing a visible metric; the completed results reveal the overall score and every step similarity.
 
 ## Scoring
 
@@ -82,13 +81,13 @@ score = 100 × continuity × progression × efficiency
 
 “Mean quality” is the ordinary average of all normalized step qualities. It is multiplied by a consistency factor, so a route with one unusually weak jump does not receive the same credit as a uniformly strong route.
 
-The geometric mean and explicit weakest-step term ensure that one excellent pair cannot compensate for an implausible jump. The efficiency multiplier gives shorter comparable routes a small advantage.
+The geometric mean and explicit weakest-step term ensure that one excellent pair cannot compensate for an implausible jump. Closer moves receive a modest progression advantage over sideways moves and detours, while the efficiency multiplier gives shorter comparable routes a small advantage.
 
 ## Session history and visualization
 
 Completed scores are stored in `sessionStorage`. They survive refreshes in the same tab but disappear when the tab's session ends. That provides a lightweight sense of a play session without introducing a database or identity system.
 
-The semantic map uses the Canvas API. It draws the vocabulary as a faint field, then animates the completed route with a sketch-like line and interactive word markers. This keeps the visual playful without adding an animation framework. The UI explicitly notes that the 2D PCA map is only an approximation of the 50-dimensional space used for scoring.
+The semantic map uses the Canvas API. It draws the vocabulary as a faint field, then animates the completed route with a sketch-like line and interactive word markers. Every completed-route crossing is also a real button that spotlights its segment on the map, and the weakest link is labeled explicitly. This keeps the visual playful without adding an animation framework. The UI explicitly notes that the 2D PCA map is only an approximation of the 50-dimensional space used for scoring.
 
 ## V1 puzzles
 
