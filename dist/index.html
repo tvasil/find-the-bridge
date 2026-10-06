@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=3">
+    <link rel="stylesheet" href="./styles.css?v=4">
   </head>
   <body>
     <div class="page-shell">
@@ -16,13 +16,7 @@
           <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>Find the Bridge</span>
         </a>
-        <details class="rules">
-          <summary>How to play</summary>
-          <div class="rules-card">
-            <p>Add one word at a time. It must connect to your current word. Closer moves, sideways moves, and detours are all allowed.</p>
-            <p>After three bridges, make the final crossing when you're close enough. You have six bridges at most.</p>
-          </div>
-        </details>
+        <button id="open-walkthrough" class="text-button" type="button">How to play</button>
       </header>
 
       <main id="game" class="game-layout" aria-busy="true">
@@ -56,9 +50,10 @@
             </div>
             <div class="goal-pull-track" aria-hidden="true">
               <span id="goal-pull-fill"></span>
-              <i></i>
+              <b id="goal-pull-marker"></b>
+              <i id="goal-pull-threshold"></i>
             </div>
-            <div class="goal-pull-scale" aria-hidden="true"><span>Start</span><span>Landing zone</span></div>
+            <div class="goal-pull-scale" aria-hidden="true"><span>Far</span><span>Approaching</span><span>Landing zone</span><span>Strong bridge</span></div>
           </div>
 
           <div id="route-track" class="route-track" aria-label="Your word route"></div>
@@ -66,8 +61,8 @@
           <div id="crossing-ready" class="crossing-ready" role="status" aria-live="polite" hidden>
             <div class="crossing-signal" aria-hidden="true"><i></i><i></i><i></i></div>
             <div>
-              <strong>Final crossing unlocked</strong>
-              <span><b id="crossing-current">Your word</b> is close enough to <b id="crossing-end">the destination</b>.</span>
+              <strong>Bridge found</strong>
+              <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. This route is worth <b id="crossing-score">0 points</b>.</span>
             </div>
           </div>
 
@@ -85,7 +80,8 @@
           </form>
 
           <div class="play-actions">
-            <button id="undo-word" class="secondary-button" type="button" disabled>Undo last</button>
+            <button id="undo-word" class="secondary-button" type="button" disabled>Undo last · 3 left</button>
+            <button id="try-improve" class="secondary-button improve-button" type="button" hidden>Try to improve</button>
             <button id="finish-route" class="finish-button" type="button" disabled>Get closer to finish</button>
           </div>
         </section>
@@ -135,12 +131,42 @@
                 <span id="map-status">Select a crossing to trace it</span>
               </div>
               <canvas id="semantic-map" aria-label="Animated two-dimensional projection of the route"></canvas>
-              <p class="map-note">This 2D PCA view is only an approximation of the 50-dimensional space used to score the route.</p>
+              <p class="map-note"><strong>Scoring stays 50-dimensional.</strong> This 2D PCA map is only a flattened approximation for visualization.</p>
             </section>
           </div>
         </section>
       </main>
     </div>
-    <script type="module" src="./app.js?v=3"></script>
+
+    <dialog id="walkthrough" class="walkthrough" aria-label="How to play Find the Bridge">
+      <div class="walkthrough-topline">
+        <span id="walkthrough-progress" class="eyebrow">Step 1 of 3</span>
+        <button id="walkthrough-close" class="walkthrough-close" type="button" aria-label="Dismiss walkthrough">×</button>
+      </div>
+      <div class="walkthrough-step" data-step="0">
+        <span class="walkthrough-number">1</span>
+        <h2>Connect one idea at a time.</h2>
+        <p>Enter a word that is meaningfully connected to the previous one. It may move closer to the destination, sideways, or briefly take a detour.</p>
+        <div class="walkthrough-chips" aria-hidden="true"><span>Closer</span><span>Sideways</span><span>Detour</span></div>
+      </div>
+      <div class="walkthrough-step" data-step="1" hidden>
+        <span class="walkthrough-number">2</span>
+        <h2>Reach the landing zone.</h2>
+        <p>After at least three bridge words, you can finish once your current word is close enough to the destination. The pull meter keeps moving beyond that line toward a strong bridge.</p>
+        <div class="walkthrough-meter" aria-hidden="true"><i></i><b></b></div>
+      </div>
+      <div class="walkthrough-step" data-step="2" hidden>
+        <span class="walkthrough-number">3</span>
+        <h2>Finish—or improve your score.</h2>
+        <p>Once you find a bridge, finish with the score shown or try another word. You’ll see immediately whether it raises or lowers the route score. You have six bridge spaces and three undos.</p>
+        <p class="walkthrough-dimension"><strong>The game judges every move in the full 50-dimensional embedding.</strong> Only the final map is flattened into 2D.</p>
+      </div>
+      <div class="walkthrough-actions">
+        <button id="walkthrough-back" class="secondary-button" type="button" hidden>Back</button>
+        <button id="walkthrough-next" class="primary-button" type="button">Next</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="./app.js?v=4"></script>
   </body>
 </html>

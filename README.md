@@ -2,7 +2,7 @@
 
 A small browser game about connecting distant ideas with a short chain of words.
 
-The player starts with one word and enters bridge words one at a time. A word is accepted when it is semantically close enough to the current word. The game labels each accepted move as **Closer**, **Sideways**, or **Detour** based on its relationship to the destination. After at least three accepted bridges, the player can finish when the current word is close enough to the destination. Each puzzle allows at most six bridge words.
+The player starts with one word and enters bridge words one at a time. A word is accepted when it is semantically close enough to the current word. The game labels each accepted move as **Closer**, **Sideways**, or **Detour** based on its relationship to the destination. After at least three accepted bridges, the player can finish when the current word is close enough to the destination. Each puzzle allows at most six bridge words and three undos.
 
 ## Run locally
 
@@ -64,7 +64,9 @@ The `0.20` threshold deliberately permits lateral “leap” guesses. It is isol
 
 The final crossing becomes available after three bridge words when the current word has at least `0.34` similarity to the destination. If the player reaches six words without that proximity, they can undo and try another direction.
 
-During play, a destination-pull meter and the three direction labels show progress without exposing raw embedding values. When the final crossing unlocks, the interface announces it with a short animation and makes further bridge words explicitly optional. Exact similarity values remain hidden during play so the player reasons about words rather than optimizing a visible metric; the completed results reveal the overall score and every step similarity.
+During play, a destination-pull meter and the three direction labels show progress without exposing raw embedding values. The meter uses a fixed scale from **Far** through **Landing zone** to **Strong bridge**, so it keeps distinguishing words after the finishing threshold is crossed.
+
+When the final crossing unlocks, the interface announces a provisional route score. The player can finish with that score or deliberately enter improvement mode. Every additional bridge immediately shows whether the provisional score rose, fell, or stayed level, and the player can undo a poor experiment while undos remain. Unused bridge spaces are not rendered as unfinished fields; the route shows only placed words and the single next available space.
 
 ## Scoring
 
@@ -87,7 +89,11 @@ The geometric mean and explicit weakest-step term ensure that one excellent pair
 
 Completed scores are stored in `sessionStorage`. They survive refreshes in the same tab but disappear when the tab's session ends. That provides a lightweight sense of a play session without introducing a database or identity system.
 
-The semantic map uses the Canvas API. It draws the vocabulary as a faint field, then animates the completed route with a sketch-like line and interactive word markers. Every completed-route crossing is also a real button that spotlights its segment on the map, and the weakest link is labeled explicitly. This keeps the visual playful without adding an animation framework. The UI explicitly notes that the 2D PCA map is only an approximation of the 50-dimensional space used for scoring.
+The semantic map uses the Canvas API. It draws the vocabulary as a faint field, then animates the completed route with a sketch-like line and interactive word markers. Every completed-route crossing is also a real button that spotlights its segment on the map, and the weakest link is labeled explicitly. This keeps the visual playful without adding an animation framework.
+
+Acceptance, destination proximity, direction labels, and scoring always use all 50 embedding dimensions. Only the visualization uses the two offline PCA coordinates. The interface explicitly describes that map as a flattened approximation rather than the space used for judging routes.
+
+A dismissible three-step walkthrough opens on the first visit and remains available from **How to play**. Its dismissed state is stored locally in the browser.
 
 ## V1 puzzles
 
