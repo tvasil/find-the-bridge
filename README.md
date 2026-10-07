@@ -68,11 +68,11 @@ The final crossing becomes available after three bridge words when the current w
 
 During play, a destination-pull meter and the three direction labels show progress without exposing raw embedding values. The meter uses a fixed scale from **Far** through **Landing zone** to **Strong bridge**, so it keeps distinguishing words after the finishing threshold is crossed.
 
-When the final crossing unlocks, the interface announces a provisional route score. The player can finish with that score or deliberately enter improvement mode. Every additional bridge immediately shows whether the provisional score rose, fell, or stayed level, and the player can undo a poor experiment while undos remain. Unused bridge spaces are not rendered as unfinished fields; the route shows only placed words and the single next available space.
+When the final crossing unlocks, a celebratory dialog presents the provisional route score and asks the player to **Finish & see route** or **Keep improving**. Every score display says that higher is better. An additional bridge raises the score only when its stronger connections outweigh the small efficiency penalty for using another word; the player sees the score change immediately and can undo a poor experiment while undos remain. Unused bridge spaces are not rendered as unfinished fields; the route shows only placed words and the single next available space.
 
 ## Scoring
 
-Cosine similarity is transformed into step quality on a 0–1 scale. That mapping is a product choice, not a standard embedding formula; it makes raw similarities easier to combine and tune for a game.
+Cosine similarity is transformed into step quality on a 0–1 scale. Both similarity and the final 0–100 route score are higher-is-better; the interface consistently calls the raw value **connection strength** so it is not confused with cosine distance, whose direction would be reversed. The quality mapping is a product choice, not a standard embedding formula; it makes raw similarities easier to combine and tune for a game.
 
 ```text
 continuity =
@@ -101,7 +101,7 @@ A dismissible three-step walkthrough opens on the first visit and remains availa
 
 The browser loads 24 curated start/end pairs and shuffles them at the beginning of every session. Reaching the end of the deck reshuffles it while avoiding an immediate repeat. The endpoints remain curated rather than selecting arbitrary vocabulary words, which keeps each round distant but reasonably bridgeable.
 
-Examples include `volcano → bank`, `bee → democracy`, `glacier → coffee`, `feather → justice`, `pillow → space`, and `rocket → courtroom`. The full deck lives in `dist/data/puzzles.json`.
+Examples include `volcano → bank`, `bee → democracy`, `glacier → coffee`, `feather → justice`, `pillow → space`, and `rocket → courtroom`. The full deck lives in `dist/data/puzzles.json`. Each puzzle also contains a precomputed, human-reviewed `strongRoute`. Players can optionally reveal it after finishing; it is presented as another good route rather than an authoritative best answer. `scripts/validate-puzzles.mjs` checks every reference route against the live vocabulary and gameplay thresholds.
 
 ## Cloudflare deployment
 

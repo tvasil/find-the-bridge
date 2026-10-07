@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=5">
+    <link rel="stylesheet" href="./styles.css?v=6">
   </head>
   <body>
     <div class="page-shell">
@@ -62,7 +62,7 @@
             <div class="crossing-signal" aria-hidden="true"><i></i><i></i><i></i></div>
             <div>
               <strong>Bridge found</strong>
-              <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. This route is worth <b id="crossing-score">0 points</b>.</span>
+              <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. Current score: <b id="crossing-score">0 / 100</b>—higher is better.</span>
             </div>
           </div>
 
@@ -81,7 +81,7 @@
 
           <div class="play-actions">
             <button id="undo-word" class="secondary-button" type="button" disabled>Undo last · 3 left</button>
-            <button id="try-improve" class="secondary-button improve-button" type="button" hidden>Try to improve</button>
+            <button id="try-improve" class="secondary-button improve-button" type="button" hidden>Keep improving</button>
             <button id="finish-route" class="finish-button" type="button" disabled>Get closer to finish</button>
           </div>
         </section>
@@ -121,7 +121,7 @@
                 <h3 id="step-title">Every crossing</h3>
                 <span>Select one to trace it</span>
               </div>
-              <p class="step-help">Each row is one semantic jump. Select one to spotlight it on the map; the weakest link is marked.</p>
+              <p class="step-help"><strong>Higher is better.</strong> Each connection is cosine similarity in the full 50-dimensional space. Select one to spotlight it on the map; the weakest is marked.</p>
               <ol id="step-list" class="step-list"></ol>
             </section>
 
@@ -134,9 +134,40 @@
               <p class="map-note"><strong>Scoring stays 50-dimensional.</strong> This 2D PCA map is only a flattened approximation for visualization.</p>
             </section>
           </div>
+
+          <section class="strong-route-panel" aria-labelledby="strong-route-title">
+            <div>
+              <span class="eyebrow">Optional reveal</span>
+              <h3 id="strong-route-title">Compare with another strong route</h3>
+              <p>This is a precomputed, human-reviewed route—not the one true answer.</p>
+            </div>
+            <button id="reveal-strong-route" class="secondary-button" type="button">Reveal a strong route</button>
+            <div id="strong-route-reveal" class="strong-route-reveal" aria-live="polite" hidden>
+              <div id="strong-route-words" class="strong-route-words" aria-label="A strong route"></div>
+              <p id="strong-route-note"></p>
+            </div>
+          </section>
         </section>
       </main>
     </div>
+
+    <dialog id="bridge-found-dialog" class="bridge-found-dialog" aria-labelledby="bridge-found-title">
+      <div class="fireworks" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="bridge-found-content">
+        <span class="eyebrow">Landing zone reached</span>
+        <h2 id="bridge-found-title">Bridge complete!</h2>
+        <p><b id="bridge-found-current">Your word</b> can connect to <b id="bridge-found-end">the destination</b>.</p>
+        <div class="bridge-found-score" aria-label="Current route score">
+          <strong id="bridge-found-score">0</strong><span>/ 100</span>
+          <small>Higher is better</small>
+        </div>
+        <p class="bridge-found-explanation">Finish now, or keep improving. An extra word only raises your score when it strengthens the route enough to outweigh the additional step.</p>
+        <div class="bridge-found-actions">
+          <button id="finish-found-route" class="finish-button" type="button">Finish &amp; see route</button>
+          <button id="improve-found-route" class="secondary-button improve-button" type="button">Keep improving</button>
+        </div>
+      </div>
+    </dialog>
 
     <dialog id="walkthrough" class="walkthrough" aria-label="How to play Find the Bridge">
       <div class="walkthrough-topline">
@@ -158,7 +189,7 @@
       <div class="walkthrough-step" data-step="2" hidden>
         <span class="walkthrough-number">3</span>
         <h2>Finish—or improve your score.</h2>
-        <p>Once you find a bridge, finish with the score shown or try another word. You’ll see immediately whether it raises or lowers the route score. You have six bridge spaces and three undos.</p>
+        <p>Once you find a bridge, choose to finish or keep improving. Route scores run from 0–100, and higher is better. An extra word helps only when it strengthens the route enough to outweigh the additional step. You have six bridge spaces and three undos.</p>
         <p class="walkthrough-dimension"><strong>The game judges every move in the full 50-dimensional embedding.</strong> Only the final map is flattened into 2D.</p>
       </div>
       <div class="walkthrough-actions">
@@ -167,6 +198,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="./app.js?v=5"></script>
+    <script type="module" src="./app.js?v=6"></script>
   </body>
 </html>

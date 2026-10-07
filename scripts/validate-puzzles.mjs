@@ -53,15 +53,34 @@ function findRoute(startWord, endWord) {
   return null;
 }
 
+function validateStrongRoute({ start, end, strongRoute }) {
+  if (!Array.isArray(strongRoute)) return ["missing strongRoute"];
+  const issues = [];
+  if (strongRoute[0] !== start || strongRoute.at(-1) !== end) issues.push("endpoints do not match");
+  if (strongRoute.length - 2 < 3 || strongRoute.length - 2 > 6) issues.push("must use 3–6 bridge words");
+  if (new Set(strongRoute).size !== strongRoute.length) issues.push("contains a repeated word");
+  const unknown = strongRoute.filter((word) => !indexByWord.has(word));
+  if (unknown.length) issues.push(`unknown words: ${unknown.join(", ")}`);
+  if (unknown.length) return issues;
+  const steps = strongRoute.slice(0, -1).map((word, index) => similarity(indexByWord.get(word), indexByWord.get(strongRoute[index + 1])));
+  steps.forEach((value, index) => {
+    if (value < MIN_JUMP_SIMILARITY) issues.push(`${strongRoute[index]} → ${strongRoute[index + 1]} is ${value.toFixed(3)}`);
+  });
+  if (steps.at(-1) < MIN_FINISH_SIMILARITY) issues.push(`final crossing is ${steps.at(-1).toFixed(3)}`);
+  return issues;
+}
+
 let failures = 0;
-for (const { start, end } of puzzleData.puzzles) {
-  const route = findRoute(start, end);
-  if (!route) {
+for (const puzzle of puzzleData.puzzles) {
+  const { start, end, strongRoute } = puzzle;
+  const issues = validateStrongRoute(puzzle);
+  const route = issues.length ? findRoute(start, end) : strongRoute;
+  if (issues.length || !route) {
     failures += 1;
-    console.error(`No route found for ${start} → ${end}`);
+    console.error(`${start} → ${end}: ${issues.join("; ") || "no route found"}`);
   } else {
     console.log(route.join(" → "));
   }
 }
 if (failures) process.exitCode = 1;
-else console.log(`Validated ${puzzleData.puzzles.length} shuffled puzzles`);
+else console.log(`Validated ${puzzleData.puzzles.length} shuffled puzzles and strong routes`);
