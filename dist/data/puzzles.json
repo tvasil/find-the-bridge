@@ -1,0 +1,28 @@
+{
+  "puzzles": [
+    { "id": "volcano-bank", "start": "volcano", "end": "bank" },
+    { "id": "bee-democracy", "start": "bee", "end": "democracy" },
+    { "id": "telescope-soup", "start": "telescope", "end": "soup" },
+    { "id": "violin-desert", "start": "violin", "end": "desert" },
+    { "id": "glacier-coffee", "start": "glacier", "end": "coffee" },
+    { "id": "pirate-library", "start": "pirate", "end": "library" },
+    { "id": "thunder-chocolate", "start": "thunder", "end": "chocolate" },
+    { "id": "robot-forest", "start": "robot", "end": "forest" },
+    { "id": "moon-hospital", "start": "moon", "end": "hospital" },
+    { "id": "candle-ocean", "start": "candle", "end": "ocean" },
+    { "id": "camera-bread", "start": "camera", "end": "bread" },
+    { "id": "feather-justice", "start": "feather", "end": "justice" },
+    { "id": "bicycle-orchestra", "start": "bicycle", "end": "orchestra" },
+    { "id": "garden-computer", "start": "garden", "end": "computer" },
+    { "id": "whale-classroom", "start": "whale", "end": "classroom" },
+    { "id": "diamond-rain", "start": "diamond", "end": "rain" },
+    { "id": "train-dream", "start": "train", "end": "dream" },
+    { "id": "football-medicine", "start": "football", "end": "medicine" },
+    { "id": "spider-government", "start": "spider", "end": "government" },
+    { "id": "pillow-space", "start": "pillow", "end": "space" },
+    { "id": "river-telephone", "start": "river", "end": "telephone" },
+    { "id": "castle-music", "start": "castle", "end": "music" },
+    { "id": "rocket-courtroom", "start": "rocket", "end": "courtroom" },
+    { "id": "mushroom-city", "start": "mushroom", "end": "city" }
+  ]
+}

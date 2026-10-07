@@ -5,12 +5,17 @@ import { resolve } from "node:path";
 
 const input = resolve(process.argv[2] ?? "/private/tmp/find-the-bridge-glove-50.gz");
 const outputDir = resolve(process.argv[3] ?? "dist/data");
-const targetSize = 4000;
+const targetSize = 10000;
 const required = new Set([
   "volcano", "mountain", "land", "property", "mortgage", "bank", "money", "loan",
   "bee", "hive", "colony", "community", "society", "citizen", "vote", "democracy",
   "telescope", "lens", "glass", "bowl", "broth", "soup", "spoon", "kitchen",
   "violin", "bow", "string", "wood", "tree", "forest", "sand", "dune", "desert",
+  "glacier", "coffee", "pirate", "library", "thunder", "chocolate", "robot", "moon",
+  "hospital", "candle", "ocean", "camera", "bread", "feather", "justice", "bicycle",
+  "orchestra", "garden", "computer", "whale", "classroom", "diamond", "rain", "train",
+  "dream", "football", "medicine", "spider", "government", "pillow", "space", "river",
+  "telephone", "castle", "music", "rocket", "courtroom", "mushroom", "city",
 ]);
 const stopWords = new Set(`a an and are as at be been being but by can could did do does for from had has have he her hers him his how i if in into is it its itself may me might mine my no nor not of on or our ours ourselves she should so than that the their theirs them themselves then there these they this those through to too under until up us very was we were what when where which while who whom why will with would you your yours yourself yourselves`.split(" "));
 

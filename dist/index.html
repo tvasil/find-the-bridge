@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=4">
+    <link rel="stylesheet" href="./styles.css?v=5">
   </head>
   <body>
     <div class="page-shell">
@@ -22,8 +22,8 @@
       <main id="game" class="game-layout" aria-busy="true">
         <section class="play-card" aria-labelledby="puzzle-title">
           <div class="puzzle-meta">
-            <span id="puzzle-number" class="eyebrow">Puzzle 01 / 04</span>
-            <button id="next-puzzle" class="text-button" type="button">Switch puzzle</button>
+            <span id="puzzle-number" class="eyebrow">Shuffling puzzles…</span>
+            <button id="next-puzzle" class="text-button" type="button">Random puzzle</button>
           </div>
 
           <div class="destination-lockup">
@@ -74,7 +74,7 @@
               <button id="place-word" class="primary-button" type="submit" disabled>Place word</button>
             </div>
             <div class="form-foot">
-              <p id="feedback" class="feedback" aria-live="polite">Preparing 4,000 words…</p>
+              <p id="feedback" class="feedback" aria-live="polite">Preparing 10,000 words…</p>
               <span id="moves-left" class="moves-left">6 bridges left</span>
             </div>
           </form>
@@ -167,6 +167,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="./app.js?v=4"></script>
+    <script type="module" src="./app.js?v=5"></script>
   </body>
 </html>

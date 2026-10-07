@@ -18,6 +18,8 @@ Run the scoring checks with:
 
 ```sh
 node tests/scoring.test.mjs
+node tests/embeddings.test.mjs
+node scripts/validate-puzzles.mjs
 ```
 
 ## Architecture
@@ -26,7 +28,7 @@ node tests/scoring.test.mjs
 - `dist/styles.css` contains the responsive visual system.
 - `dist/app.js` owns sequential play, local session history, results, Canvas animation, and optional WebMCP actions.
 - `dist/scoring.mjs` contains acceptance thresholds, cosine similarity, step labels, and route scoring.
-- `dist/data/` contains the fixed vocabulary, quantized vectors, and global PCA coordinates used in the browser.
+- `dist/data/` contains the fixed vocabulary, quantized vectors, global PCA coordinates, and curated puzzle deck used in the browser.
 - `scripts/build-embeddings.mjs` reproduces the static data from a pretrained model.
 - `tests/scoring.test.mjs` checks the scoring invariants.
 
@@ -34,13 +36,13 @@ Everything runs in the browser. There is no backend, account, paid API, or netwo
 
 ## Embeddings
 
-V1 uses approximately 4,000 common content words extracted from 50-dimensional GloVe vectors. GloVe is intentionally conservative here: it is small enough for a browser prototype, well understood, and its pretrained data is distributed under the Public Domain Dedication and License. The source model is `glove-wiki-gigaword-50`, derived from [Stanford GloVe](https://nlp.stanford.edu/projects/glove/).
+The game uses approximately 10,000 common content words extracted from 50-dimensional GloVe vectors. GloVe is intentionally conservative here: it is small enough for a browser game, well understood, and its pretrained data is distributed under the Public Domain Dedication and License. The source model is `glove-wiki-gigaword-50`, derived from [Stanford GloVe](https://nlp.stanford.edu/projects/glove/).
 
-Each vector is L2-normalized offline. In plain language, this scales every vector to the same length, so cosine similarity compares direction—semantic relationship—rather than raw magnitude. Each normalized value is then stored as a signed 8-bit integer. The browser payload is about 270 KB before transfer compression:
+Each vector is L2-normalized offline. In plain language, this scales every vector to the same length, so cosine similarity compares direction—semantic relationship—rather than raw magnitude. Each normalized value is then stored as a signed 8-bit integer. The browser data payload is about 680 KB before transfer compression:
 
-- 196 KB for 4,000 × 50 quantized embedding dimensions.
-- 32 KB for two projection coordinates per word.
-- About 40 KB for vocabulary metadata.
+- 500 KB for approximately 10,000 × 50 quantized embedding dimensions.
+- 80 KB for two projection coordinates per word.
+- About 100 KB for vocabulary and puzzle metadata.
 
 A static CSV would not provide row-level database queries in the browser. Without a server or a separately maintained byte index, the browser would still download and parse the entire CSV. The indexed binary layout is smaller and lets the browser jump directly to a word's fixed-width vector.
 
@@ -95,11 +97,25 @@ Acceptance, destination proximity, direction labels, and scoring always use all 
 
 A dismissible three-step walkthrough opens on the first visit and remains available from **How to play**. Its dismissed state is stored locally in the browser.
 
-## V1 puzzles
+## Puzzle deck
 
-- volcano → bank
-- bee → democracy
-- telescope → soup
-- violin → desert
+The browser loads 24 curated start/end pairs and shuffles them at the beginning of every session. Reaching the end of the deck reshuffles it while avoiding an immediate repeat. The endpoints remain curated rather than selecting arbitrary vocabulary words, which keeps each round distant but reasonably bridgeable.
+
+Examples include `volcano → bank`, `bee → democracy`, `glacier → coffee`, `feather → justice`, `pillow → space`, and `rocket → courtroom`. The full deck lives in `dist/data/puzzles.json`.
+
+## Cloudflare Pages
+
+The deployable site is the committed static `dist/` directory. For a Git-connected Cloudflare Pages project, use:
+
+- Production branch: `main`
+- Build command: leave empty
+- Build output directory: `dist`
+- Root directory: repository root
+
+Cloudflare will then publish every push to `main`. A direct upload remains available with Wrangler:
+
+```sh
+npx wrangler pages deploy dist --project-name=find-the-bridge --branch=main
+```
 
 Daily puzzles, sharing, hints, generated shortest paths, multiplayer, accounts, and phrase embeddings are deliberately deferred.

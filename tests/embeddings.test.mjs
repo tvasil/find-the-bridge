@@ -8,13 +8,14 @@ import {
 } from "../dist/scoring.mjs";
 
 const metadata = JSON.parse(readFileSync(new URL("../dist/data/vocabulary.json", import.meta.url), "utf8"));
+const puzzleData = JSON.parse(readFileSync(new URL("../dist/data/puzzles.json", import.meta.url), "utf8"));
 const vectorsBuffer = readFileSync(new URL("../dist/data/vectors.bin", import.meta.url));
 const projectionBuffer = readFileSync(new URL("../dist/data/projection.bin", import.meta.url));
 const vectors = new Int8Array(vectorsBuffer.buffer, vectorsBuffer.byteOffset, vectorsBuffer.byteLength);
 const indexByWord = new Map(metadata.words.map((word, index) => [word, index]));
 const similarity = (left, right) => cosineInt8(vectors, metadata.dimensions, indexByWord.get(left), indexByWord.get(right));
 
-assert.ok(metadata.size >= 4000);
+assert.ok(metadata.size >= 10000);
 assert.equal(vectors.length, metadata.size * metadata.dimensions);
 assert.equal(projectionBuffer.byteLength, metadata.size * 2 * Float32Array.BYTES_PER_ELEMENT);
 
@@ -45,5 +46,13 @@ assert.equal(
   "detour",
   "country → parliament should be an accepted detour",
 );
+
+assert.ok(puzzleData.puzzles.length >= 20, "the shuffled deck should contain at least 20 puzzles");
+assert.equal(new Set(puzzleData.puzzles.map(({ id }) => id)).size, puzzleData.puzzles.length, "puzzle IDs should be unique");
+for (const { start, end } of puzzleData.puzzles) {
+  assert.ok(indexByWord.has(start), `${start} puzzle endpoint should be in the vocabulary`);
+  assert.ok(indexByWord.has(end), `${end} puzzle endpoint should be in the vocabulary`);
+  assert.ok(similarity(start, end) < 0.5, `${start} → ${end} should begin as a meaningfully distant puzzle`);
+}
 
 console.log("Embedding and puzzle-route checks passed");

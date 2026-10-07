@@ -7,19 +7,14 @@ import {
   cosineInt8,
   scoreRoute,
   stepLabel,
-} from "./scoring.mjs?v=4";
+} from "./scoring.mjs?v=5";
 
 const MAX_UNDOS = 3;
 const PULL_DISPLAY_MIN = -0.05;
 const PULL_DISPLAY_MAX = 0.75;
 const WALKTHROUGH_KEY = "find-the-bridge-walkthrough-v1";
 
-const puzzles = [
-  { id: "volcano-bank", start: "volcano", end: "bank" },
-  { id: "bee-democracy", start: "bee", end: "democracy" },
-  { id: "telescope-soup", start: "telescope", end: "soup" },
-  { id: "violin-desert", start: "violin", end: "desert" },
-];
+let puzzles = [];
 
 const elements = {
   game: document.querySelector("#game"),
@@ -80,6 +75,17 @@ let walkthroughStep = 0;
 let state = { puzzleIndex: 0, bridges: [], finished: false, finishReady: false, improving: false, undosUsed: 0 };
 
 function currentPuzzle() { return puzzles[state.puzzleIndex]; }
+function shufflePuzzleDeck(items, avoidFirstId = "") {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  if (shuffled.length > 1 && shuffled[0].id === avoidFirstId) {
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+  }
+  return shuffled;
+}
 function indexOf(word) { return indexByWord.get(word); }
 function similarity(left, right) {
   return cosineInt8(vectors, embeddingData.dimensions, indexOf(left), indexOf(right));
@@ -182,7 +188,7 @@ function renderPuzzle() {
   const showForm = !state.finished
     && state.bridges.length < MAX_BRIDGES
     && (!finishEligible || state.improving);
-  elements.puzzleNumber.textContent = `Puzzle ${String(state.puzzleIndex + 1).padStart(2, "0")} / ${String(puzzles.length).padStart(2, "0")}`;
+  elements.puzzleNumber.textContent = `Puzzle ${String(state.puzzleIndex + 1).padStart(2, "0")} / ${String(puzzles.length).padStart(2, "0")} · shuffled`;
   elements.startWord.textContent = puzzle.start;
   elements.endWord.textContent = puzzle.end;
   setEndpointScale(elements.startWord, puzzle.start);
@@ -397,7 +403,13 @@ function renderResults(route, steps, score) {
 }
 
 function resetPuzzle(index = state.puzzleIndex) {
-  state = { puzzleIndex: (index + puzzles.length) % puzzles.length, bridges: [], finished: false, finishReady: false, improving: false, undosUsed: 0 };
+  let nextIndex = index;
+  if (nextIndex >= puzzles.length) {
+    const previousId = currentPuzzle()?.id;
+    puzzles = shufflePuzzleDeck(puzzles, previousId);
+    nextIndex = 0;
+  }
+  state = { puzzleIndex: (nextIndex + puzzles.length) % puzzles.length, bridges: [], finished: false, finishReady: false, improving: false, undosUsed: 0 };
   activeMapRoute = [];
   activeMapSteps = [];
   selectedStepIndex = null;
@@ -635,15 +647,18 @@ new ResizeObserver(() => {
 
 async function initialize() {
   try {
-    const [metadataResponse, vectorResponse, projectionResponse] = await Promise.all([
+    const [metadataResponse, vectorResponse, projectionResponse, puzzlesResponse] = await Promise.all([
       fetch("./data/vocabulary.json"),
       fetch("./data/vectors.bin"),
       fetch("./data/projection.bin"),
+      fetch("./data/puzzles.json"),
     ]);
-    if (!metadataResponse.ok || !vectorResponse.ok || !projectionResponse.ok) throw new Error("Embedding data did not load");
+    if (!metadataResponse.ok || !vectorResponse.ok || !projectionResponse.ok || !puzzlesResponse.ok) throw new Error("Game data did not load");
     embeddingData = await metadataResponse.json();
     vectors = new Int8Array(await vectorResponse.arrayBuffer());
     projection = new Float32Array(await projectionResponse.arrayBuffer());
+    const puzzleData = await puzzlesResponse.json();
+    puzzles = shufflePuzzleDeck(puzzleData.puzzles);
     indexByWord = new Map(embeddingData.words.map((word, index) => [word, index]));
     const fragment = document.createDocumentFragment();
     embeddingData.words.forEach((word) => fragment.append(Object.assign(document.createElement("option"), { value: word })));
