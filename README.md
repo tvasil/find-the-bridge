@@ -103,19 +103,24 @@ The browser loads 24 curated start/end pairs and shuffles them at the beginning 
 
 Examples include `volcano → bank`, `bee → democracy`, `glacier → coffee`, `feather → justice`, `pillow → space`, and `rocket → courtroom`. The full deck lives in `dist/data/puzzles.json`.
 
-## Cloudflare Pages
+## Cloudflare deployment
 
-The deployable site is the committed static `dist/` directory. For a Git-connected Cloudflare Pages project, use:
+Cloudflare's current Git setup creates a Worker with static assets rather than showing the older Pages output-directory form. The site is still entirely static: [`wrangler.jsonc`](wrangler.jsonc) tells Cloudflare to publish the committed `dist/` directory.
 
-- Production branch: `main`
+On the **Configure your Worker project** screen, use:
+
+- Project name: `find-the-bridge`
 - Build command: leave empty
-- Build output directory: `dist`
-- Root directory: repository root
+- Deploy command: `npx wrangler deploy`
+- Preview command: `npx wrangler preview`
+- Root directory: leave at the repository root, if that field is shown
 
-Cloudflare will then publish every push to `main`. A direct upload remains available with Wrangler:
+Then select **Save and Deploy**. The production branch defaults to the repository's default branch (`main`); after creation, it can be checked under **Settings → Build → Branch control**. Every subsequent push to `main` will produce a production deployment.
+
+The same configuration can be deployed directly from the repository with:
 
 ```sh
-npx wrangler pages deploy dist --project-name=find-the-bridge --branch=main
+npx wrangler deploy
 ```
 
 Daily puzzles, sharing, hints, generated shortest paths, multiplayer, accounts, and phrase embeddings are deliberately deferred.
