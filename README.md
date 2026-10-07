@@ -101,7 +101,7 @@ A dismissible three-step walkthrough opens on the first visit and remains availa
 
 The browser loads 24 curated start/end pairs and shuffles them at the beginning of every session. Reaching the end of the deck reshuffles it while avoiding an immediate repeat. The endpoints remain curated rather than selecting arbitrary vocabulary words, which keeps each round distant but reasonably bridgeable.
 
-Examples include `volcano → bank`, `bee → democracy`, `glacier → coffee`, `feather → justice`, `pillow → space`, and `rocket → courtroom`. The full deck lives in `dist/data/puzzles.json`. Each puzzle also contains a precomputed, human-reviewed `strongRoute`. Players can optionally reveal it after finishing; it is presented as another good route rather than an authoritative best answer. `scripts/validate-puzzles.mjs` checks every reference route against the live vocabulary and gameplay thresholds.
+Examples include `volcano → bank`, `bee → democracy`, `glacier → coffee`, `feather → justice`, `pillow → space`, and `rocket → courtroom`. The full deck lives in `dist/data/puzzles.json`. Each puzzle also contains a precomputed, curated `strongRoute`. Players can optionally reveal it after finishing; it is presented as another good route rather than an authoritative best answer. `scripts/validate-puzzles.mjs` checks every reference route against the live vocabulary and gameplay thresholds.
 
 ## Cloudflare deployment
 
