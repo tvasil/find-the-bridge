@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=7">
+    <link rel="stylesheet" href="./styles.css?v=8">
   </head>
   <body>
     <div class="page-shell">
@@ -92,8 +92,7 @@
             <form id="guess-form" class="guess-form" autocomplete="off">
               <label id="guess-label" for="guess-input">Your next star</label>
               <div class="input-row">
-                <div class="input-wrap"><span aria-hidden="true">✦</span><input id="guess-input" name="guess" type="text" inputmode="text" list="word-list" maxlength="28" placeholder="Type a connected word" aria-describedby="feedback" disabled></div>
-                <datalist id="word-list"></datalist>
+                <div class="input-wrap"><span aria-hidden="true">✦</span><input id="guess-input" name="guess" type="text" inputmode="text" maxlength="28" placeholder="Type your next word" aria-describedby="feedback" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" disabled></div>
                 <button id="place-word" class="primary-button" type="submit" disabled>Place star</button>
               </div>
               <div class="form-foot">
@@ -222,6 +221,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="./app.js?v=7"></script>
+    <script type="module" src="./app.js?v=8"></script>
   </body>
 </html>

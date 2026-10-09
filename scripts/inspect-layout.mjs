@@ -33,7 +33,7 @@ if (process.argv.includes("--mobile")) {
 await command("Runtime.evaluate", { expression: "localStorage.setItem('find-the-bridge-walkthrough-v1','seen')" });
 await command("Page.reload", { ignoreCache: true });
 await new Promise((resolve) => setTimeout(resolve, 1100));
-const demoWords = process.argv.slice(3).filter((argument) => argument !== "--mobile");
+const demoWords = process.argv.slice(3).filter((argument) => !argument.startsWith("--"));
 const expectedStart = demoWords.shift();
 if (expectedStart) {
   for (let index = 0; index < 24; index += 1) {
@@ -49,7 +49,15 @@ for (const word of demoWords) {
   });
   await new Promise((resolve) => setTimeout(resolve, 700));
 }
-await command("Runtime.evaluate", { expression: "if (document.querySelector('#bridge-found-dialog')?.open) document.querySelector('#bridge-found-dialog').close()" });
+if (process.argv.includes("--improve")) {
+  await command("Runtime.evaluate", { expression: "if (document.querySelector('#bridge-found-dialog')?.open) document.querySelector('#improve-found-route').click(); else if (!document.querySelector('#try-improve').hidden) document.querySelector('#try-improve').click()" });
+  await new Promise((resolve) => setTimeout(resolve, 250));
+} else {
+  await command("Runtime.evaluate", { expression: "if (document.querySelector('#bridge-found-dialog')?.open) document.querySelector('#bridge-found-dialog').close()" });
+}
+if (process.argv.includes("--type-test")) {
+  await command("Runtime.evaluate", { expression: "document.querySelector('#next-puzzle').focus(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', bubbles: true }))" });
+}
 await command("Runtime.evaluate", { expression: "window.scrollTo(0, 0)" });
 const diagnostics = await command("Runtime.evaluate", {
   expression: `JSON.stringify({
@@ -59,6 +67,11 @@ const diagnostics = await command("Runtime.evaluate", {
     title: document.title,
     canvas: (() => { const r = document.querySelector('#progress-galaxy').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })(),
     inputEnabled: !document.querySelector('#guess-input').disabled,
+    inputValue: document.querySelector('#guess-input').value,
+    inputWidth: Math.round(document.querySelector('#guess-input').getBoundingClientRect().width),
+    autocomplete: document.querySelector('#guess-input').autocomplete,
+    hasSuggestionList: document.querySelector('#guess-input').hasAttribute('list'),
+    endpointFits: [...document.querySelectorAll('.destination-lockup strong')].map((node) => ({ word: node.textContent, client: node.clientWidth, scroll: node.scrollWidth, font: getComputedStyle(node).fontSize })),
     routeNodes: document.querySelectorAll('.route-node').length,
     errors: window.__layoutErrors || []
   })`,

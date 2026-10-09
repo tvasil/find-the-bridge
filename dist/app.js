@@ -19,6 +19,7 @@ let puzzles = [];
 const elements = {
   game: document.querySelector("#game"),
   puzzleNumber: document.querySelector("#puzzle-number"),
+  destinationLockup: document.querySelector(".destination-lockup"),
   startWord: document.querySelector("#start-word"),
   endWord: document.querySelector("#end-word"),
   instruction: document.querySelector("#instruction"),
@@ -44,7 +45,6 @@ const elements = {
   guessLabel: document.querySelector("#guess-label"),
   input: document.querySelector("#guess-input"),
   placeWord: document.querySelector("#place-word"),
-  wordList: document.querySelector("#word-list"),
   feedback: document.querySelector("#feedback"),
   movesLeft: document.querySelector("#moves-left"),
   undo: document.querySelector("#undo-word"),
@@ -145,9 +145,25 @@ function routeScoreData(bridges = state.bridges) {
   return scoreDataForRoute([puzzle.start, ...bridges, puzzle.end]);
 }
 
-function setEndpointScale(element, word) {
-  element.classList.toggle("long-word", word.length >= 8);
-  element.classList.toggle("very-long-word", word.length >= 10);
+function fitEndpointWords() {
+  const lockup = elements.destinationLockup;
+  const endpoints = [elements.startWord, elements.endWord];
+  if (!lockup || endpoints.some((endpoint) => endpoint.clientWidth === 0)) return;
+  let low = 22;
+  let high = Math.min(84, Math.max(40, innerWidth * .055));
+  let best = low;
+  for (let pass = 0; pass < 9; pass += 1) {
+    const size = (low + high) / 2;
+    lockup.style.setProperty("--endpoint-size", `${size}px`);
+    const fits = endpoints.every((endpoint) => endpoint.scrollWidth <= endpoint.clientWidth + 1);
+    if (fits) {
+      best = size;
+      low = size;
+    } else {
+      high = size;
+    }
+  }
+  lockup.style.setProperty("--endpoint-size", `${best.toFixed(2)}px`);
 }
 
 function showBridgeFoundDialog(score) {
@@ -446,8 +462,7 @@ function renderPuzzle() {
   elements.puzzleNumber.textContent = `Puzzle ${String(state.puzzleIndex + 1).padStart(2, "0")} / ${String(puzzles.length).padStart(2, "0")} · shuffled`;
   elements.startWord.textContent = puzzle.start;
   elements.endWord.textContent = puzzle.end;
-  setEndpointScale(elements.startWord, puzzle.start);
-  setEndpointScale(elements.endWord, puzzle.end);
+  requestAnimationFrame(fitEndpointWords);
   elements.form.hidden = !showForm;
   elements.input.placeholder = finishEligible ? `A star that improves “${currentWord()}”` : `A word near “${currentWord()}”`;
   elements.input.value = "";
@@ -831,6 +846,7 @@ function rememberWalkthrough() {
 function closeWalkthrough() {
   rememberWalkthrough();
   if (elements.walkthrough.open) elements.walkthrough.close();
+  if (!elements.input.disabled && !elements.form.hidden) requestAnimationFrame(() => elements.input.focus({ preventScroll: true }));
 }
 
 function registerWebMcp() {
@@ -897,6 +913,19 @@ elements.galaxyCanvas.addEventListener("wheel", (event) => {
   galaxyZoom = Math.max(.72, Math.min(1.42, galaxyZoom - event.deltaY * .0007));
 }, { passive: false });
 
+document.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || !/^[a-z]$/i.test(event.key)) return;
+  if (elements.input.disabled || elements.form.hidden || elements.walkthrough.open || elements.bridgeFoundDialog.open) return;
+  const active = document.activeElement;
+  if (active === elements.input || active?.matches("input, textarea, [contenteditable='true']")) return;
+  event.preventDefault();
+  const start = elements.input.selectionStart ?? elements.input.value.length;
+  const end = elements.input.selectionEnd ?? start;
+  elements.input.focus({ preventScroll: true });
+  elements.input.setRangeText(event.key, start, end, "end");
+  elements.input.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
   const word = elements.input.value;
@@ -955,6 +984,7 @@ new ResizeObserver(() => {
     drawSemanticMap(activeMapRoute, selectedStepIndex, false);
   }
 }).observe(elements.canvas);
+new ResizeObserver(() => fitEndpointWords()).observe(elements.destinationLockup);
 
 async function initialize() {
   try {
@@ -971,9 +1001,6 @@ async function initialize() {
     const puzzleData = await puzzlesResponse.json();
     puzzles = shufflePuzzleDeck(puzzleData.puzzles);
     indexByWord = new Map(embeddingData.words.map((word, index) => [word, index]));
-    const fragment = document.createDocumentFragment();
-    embeddingData.words.forEach((word) => fragment.append(Object.assign(document.createElement("option"), { value: word })));
-    elements.wordList.append(fragment);
     elements.game.setAttribute("aria-busy", "false");
     elements.input.disabled = false;
     elements.placeWord.disabled = false;
@@ -986,6 +1013,7 @@ async function initialize() {
     } catch {
       openWalkthrough();
     }
+    if (!elements.walkthrough.open) elements.input.focus({ preventScroll: true });
   } catch (error) {
     console.error(error);
     elements.game.setAttribute("aria-busy", "false");
