@@ -2,6 +2,8 @@
 
 A small browser game about connecting distant ideas with a short chain of words.
 
+[![Find the Bridge galaxy interface, showing two endpoint words connected across semantic space](docs/find-the-bridge-galaxy.png)](https://find-the-bridge.t-vasilikioti.chatgpt.site)
+
 The player starts with one word and enters bridge words one at a time. A word is accepted when it is semantically close enough to the current word. The game labels each accepted move as **Closer**, **Sideways**, or **Detour** based on its relationship to the destination. After at least three accepted bridges, the player can finish when the current word is close enough to the destination. Each puzzle allows at most six bridge words and three undos.
 
 ## Run locally
