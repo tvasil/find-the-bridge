@@ -222,7 +222,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Local AI assistant and planning files
-.openai/
+.openai/*
+!.openai/hosting.json
 .claude/
 CLAUDE.md
 PLAN.md

@@ -22,6 +22,7 @@ const elements = {
   startWord: document.querySelector("#start-word"),
   endWord: document.querySelector("#end-word"),
   instruction: document.querySelector("#instruction"),
+  galaxyCanvas: document.querySelector("#progress-galaxy"),
   goalPull: document.querySelector("#goal-pull"),
   goalPullFill: document.querySelector("#goal-pull-fill"),
   goalPullMarker: document.querySelector("#goal-pull-marker"),
@@ -83,6 +84,17 @@ let activeMapSteps = [];
 let selectedStepIndex = null;
 let walkthroughStep = 0;
 let completedScore = null;
+let galaxyAnimation;
+let galaxyRoute = [];
+let galaxyRouteChangedAt = 0;
+let galaxyLastBridgeCount = -1;
+let galaxyYaw = -0.12;
+let galaxyTargetYaw = -0.12;
+let galaxyPitch = -0.08;
+let galaxyTargetPitch = -0.08;
+let galaxyZoom = 1;
+let galaxyDragging = false;
+let galaxyPointer = { x: 0, y: 0 };
 let state = { puzzleIndex: 0, bridges: [], finished: false, finishReady: false, improving: false, undosUsed: 0 };
 
 function currentPuzzle() { return puzzles[state.puzzleIndex]; }
@@ -209,6 +221,218 @@ function renderRoute() {
   }));
 }
 
+function semanticPoint(word, routeIndex = 1, routeLength = 3) {
+  const wordIndex = indexOf(word);
+  const vectorOffset = wordIndex * embeddingData.dimensions;
+  if (routeIndex === 0) return { word, x: -1.35, y: .05, z: .35 };
+  if (routeIndex === routeLength - 1) return { word, x: 1.35, y: -.05, z: -.35 };
+  const destination = currentPuzzle().end;
+  const semanticProgress = Math.max(0, Math.min(1, (similarity(word, destination) - PULL_DISPLAY_MIN) / (PULL_DISPLAY_MAX - PULL_DISPLAY_MIN)));
+  return {
+    word,
+    x: -1.18 + semanticProgress * 2.36,
+    y: (.5 - projection[wordIndex * 2 + 1]) * 1.45 + Math.sin(routeIndex * 2.2) * .38,
+    z: ((vectors[vectorOffset + 2] ?? 0) / 127) * 1.05 + Math.cos(routeIndex * 1.7) * .24,
+  };
+}
+
+function projectGalaxyPoint(point, width, height, yaw = galaxyYaw, pitch = galaxyPitch) {
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const cosPitch = Math.cos(pitch);
+  const sinPitch = Math.sin(pitch);
+  const rotatedX = point.x * cosYaw - point.z * sinYaw;
+  const yawZ = point.x * sinYaw + point.z * cosYaw;
+  const rotatedY = point.y * cosPitch - yawZ * sinPitch;
+  const rotatedZ = point.y * sinPitch + yawZ * cosPitch;
+  const perspective = (3.7 / (3.7 + rotatedZ)) * galaxyZoom;
+  const scale = Math.min(width, height) * .29;
+  return {
+    ...point,
+    x: width / 2 + rotatedX * scale * perspective,
+    y: height * .49 + rotatedY * scale * perspective,
+    depth: rotatedZ,
+    perspective,
+  };
+}
+
+function drawStar(context, x, y, radius, color, glow = 0) {
+  context.save();
+  context.fillStyle = color;
+  context.shadowColor = color;
+  context.shadowBlur = glow;
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fill();
+  if (radius > 4) {
+    context.globalAlpha = .55;
+    context.fillRect(x - radius * 2.2, y - .45, radius * 4.4, .9);
+    context.fillRect(x - .45, y - radius * 2.2, .9, radius * 4.4);
+  }
+  context.restore();
+}
+
+function galaxyLabel(context, point, word, color, width, offset = 14, below = false) {
+  context.save();
+  context.font = "650 13px Inter, ui-sans-serif, sans-serif";
+  const textWidth = context.measureText(word).width;
+  const destinationLabel = offset === "left";
+  const x = Math.max(9, Math.min(width - textWidth - 17, destinationLabel ? point.x - textWidth - 14 : point.x + offset));
+  const y = point.y + (destinationLabel ? -28 : below ? 27 : -9);
+  context.fillStyle = "rgba(4,7,22,.76)";
+  context.fillRect(x - 6, y - 14, textWidth + 12, 21);
+  context.fillStyle = color;
+  context.fillText(word, x, y);
+  context.restore();
+}
+
+function drawGalaxyFrame(now) {
+  const canvas = elements.galaxyCanvas;
+  if (!canvas || !embeddingData || !projection || !vectors) return;
+  const context = canvas.getContext("2d");
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+  }
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+
+  galaxyYaw += (galaxyTargetYaw - galaxyYaw) * .055;
+  galaxyPitch += (galaxyTargetPitch - galaxyPitch) * .055;
+  if (!galaxyDragging && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    galaxyTargetYaw += .000055;
+  }
+
+  context.fillStyle = "#050716";
+  context.fillRect(0, 0, width, height);
+  const blueCloud = context.createRadialGradient(width * .23, height * .42, 0, width * .23, height * .42, width * .42);
+  blueCloud.addColorStop(0, "rgba(30,105,170,.2)");
+  blueCloud.addColorStop(.35, "rgba(32,62,137,.1)");
+  blueCloud.addColorStop(1, "rgba(3,5,18,0)");
+  context.fillStyle = blueCloud;
+  context.fillRect(0, 0, width, height);
+  const amberCloud = context.createRadialGradient(width * .82, height * .34, 0, width * .82, height * .34, width * .35);
+  amberCloud.addColorStop(0, "rgba(178,69,47,.15)");
+  amberCloud.addColorStop(.42, "rgba(96,40,111,.1)");
+  amberCloud.addColorStop(1, "rgba(3,5,18,0)");
+  context.fillStyle = amberCloud;
+  context.fillRect(0, 0, width, height);
+
+  const backgroundStars = [];
+  for (let wordIndex = 0; wordIndex < embeddingData.size; wordIndex += 13) {
+    const vectorOffset = wordIndex * embeddingData.dimensions;
+    const point = projectGalaxyPoint({
+      x: (projection[wordIndex * 2] - .5) * 3.5,
+      y: (.5 - projection[wordIndex * 2 + 1]) * 2.35,
+      z: ((vectors[vectorOffset + 2] ?? 0) / 127) * 2.3,
+    }, width, height, galaxyYaw * .55, galaxyPitch * .55);
+    if (point.x > -5 && point.x < width + 5 && point.y > -5 && point.y < height + 5) backgroundStars.push(point);
+  }
+  backgroundStars.sort((left, right) => right.depth - left.depth);
+  backgroundStars.forEach((point, index) => {
+    const depthAlpha = Math.max(.12, Math.min(.62, .42 - point.depth * .09));
+    const twinkle = .76 + Math.sin(now * .0012 + index * 1.7) * .24;
+    context.globalAlpha = depthAlpha * twinkle;
+    context.fillStyle = index % 17 === 0 ? "#9ac7ff" : index % 29 === 0 ? "#ffd1a0" : "#ffffff";
+    const size = Math.max(.45, Math.min(1.7, 1.05 - point.depth * .16));
+    context.fillRect(point.x, point.y, size, size);
+  });
+  context.globalAlpha = 1;
+
+  if (galaxyRoute.length >= 2) {
+    const points = galaxyRoute.map((word, index) => projectGalaxyPoint(semanticPoint(word, index, galaxyRoute.length), width, height));
+    points.forEach((point) => {
+      point.x = Math.max(50, Math.min(width - 50, point.x));
+      point.y = Math.max(325, Math.min(height - 142, point.y));
+    });
+    const start = points[0];
+    const destination = points.at(-1);
+
+    context.save();
+    context.setLineDash([4, 9]);
+    context.lineWidth = 1;
+    context.strokeStyle = "rgba(255,213,128,.52)";
+    context.shadowColor = "rgba(255,213,128,.45)";
+    context.shadowBlur = 8;
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(destination.x, destination.y);
+    context.stroke();
+    context.restore();
+
+    const committed = state.finished ? points : points.slice(0, -1);
+    if (committed.length > 1) {
+      const reveal = Math.min(1, (now - galaxyRouteChangedAt) / 620);
+      context.save();
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.lineWidth = 7;
+      context.strokeStyle = "rgba(68,188,255,.13)";
+      context.shadowColor = "#73e7ff";
+      context.shadowBlur = 18;
+      context.beginPath();
+      context.moveTo(committed[0].x, committed[0].y);
+      for (let index = 1; index < committed.length; index += 1) {
+        const previous = committed[index - 1];
+        const next = committed[index];
+        const amount = index === committed.length - 1 ? reveal : 1;
+        context.lineTo(previous.x + (next.x - previous.x) * amount, previous.y + (next.y - previous.y) * amount);
+      }
+      context.stroke();
+      context.lineWidth = 1.6;
+      context.strokeStyle = "rgba(181,242,255,.95)";
+      context.shadowBlur = 8;
+      context.stroke();
+      context.restore();
+    }
+
+    if (!state.finished) {
+      const current = committed.at(-1);
+      context.save();
+      context.setLineDash([2, 7]);
+      context.lineWidth = 1.4;
+      context.strokeStyle = "rgba(255,255,255,.34)";
+      context.beginPath();
+      context.moveTo(current.x, current.y);
+      context.lineTo(destination.x, destination.y);
+      context.stroke();
+      context.restore();
+    }
+
+    points.forEach((point, index) => {
+      const isStart = index === 0;
+      const isDestination = index === points.length - 1;
+      const isCurrent = index === points.length - 2 && !isStart;
+      const color = isStart ? "#ff8a70" : isDestination ? "#ffd580" : isCurrent ? "#83ffd0" : "#73e7ff";
+      const radius = isStart || isDestination ? 7 : isCurrent ? 6 : 4.5;
+      drawStar(context, point.x, point.y, radius, color, isStart || isDestination ? 20 : 14);
+      context.save();
+      context.globalAlpha = .28 + Math.sin(now * .002 + index) * .08;
+      context.strokeStyle = color;
+      context.lineWidth = 1;
+      context.beginPath();
+      context.arc(point.x, point.y, radius + 7 + (index % 2) * 4, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+      galaxyLabel(context, point, galaxyRoute[index], color, width, isDestination ? "left" : 13, !isDestination && !isStart && index % 2 === 0);
+    });
+  }
+  galaxyAnimation = requestAnimationFrame(drawGalaxyFrame);
+}
+
+function renderGalaxyRoute() {
+  if (!embeddingData || !currentPuzzle()) return;
+  galaxyRoute = [currentPuzzle().start, ...state.bridges, currentPuzzle().end];
+  if (state.bridges.length !== galaxyLastBridgeCount) {
+    galaxyLastBridgeCount = state.bridges.length;
+    galaxyRouteChangedAt = performance.now();
+  }
+  if (!galaxyAnimation) galaxyAnimation = requestAnimationFrame(drawGalaxyFrame);
+}
+
 function renderPuzzle() {
   const puzzle = currentPuzzle();
   const finishEligible = !state.finished && canFinish();
@@ -225,7 +449,7 @@ function renderPuzzle() {
   setEndpointScale(elements.startWord, puzzle.start);
   setEndpointScale(elements.endWord, puzzle.end);
   elements.form.hidden = !showForm;
-  elements.input.placeholder = finishEligible ? `A word that improves “${currentWord()}”` : `A word near “${currentWord()}”`;
+  elements.input.placeholder = finishEligible ? `A star that improves “${currentWord()}”` : `A word near “${currentWord()}”`;
   elements.input.value = "";
   elements.input.disabled = !showForm;
   elements.placeWord.disabled = elements.input.disabled;
@@ -234,10 +458,10 @@ function renderPuzzle() {
   elements.undo.textContent = `Undo last · ${undosLeft} left`;
   elements.tryImprove.hidden = !finishEligible || state.improving || state.bridges.length >= MAX_BRIDGES;
   elements.finish.disabled = state.finished || !finishEligible;
-  elements.finish.textContent = finishEligible ? `Finish · ${previewScore}/100` : "Get closer to finish";
+  elements.finish.textContent = finishEligible ? `Complete constellation · ${previewScore}/100` : "Destination out of range";
   elements.finish.classList.toggle("is-ready", finishEligible);
-  elements.guessLabel.textContent = finishEligible ? "Try to improve your route" : "Your next bridge";
-  elements.placeWord.textContent = finishEligible ? "Test this bridge" : "Place word";
+  elements.guessLabel.textContent = finishEligible ? "Try to improve your constellation" : "Your next star";
+  elements.placeWord.textContent = finishEligible ? "Test this star" : "Place star";
   elements.crossingReady.hidden = !finishEligible;
   elements.crossingCurrent.textContent = `“${currentWord()}”`;
   elements.crossingEnd.textContent = `“${puzzle.end}”`;
@@ -256,24 +480,25 @@ function renderPuzzle() {
       elements.finish.classList.remove("celebrate");
     }, 2400);
   }
-  elements.movesLeft.textContent = `${state.bridges.length} of ${MAX_BRIDGES} bridge spaces used`;
+  elements.movesLeft.textContent = `${state.bridges.length} of ${MAX_BRIDGES} bridge stars placed`;
 
   if (state.finished) {
-    elements.instruction.textContent = `Route complete in ${state.bridges.length} bridge words.`;
+    elements.instruction.textContent = `Constellation complete in ${state.bridges.length} bridge stars.`;
   } else if (finishEligible && state.improving) {
-    elements.instruction.textContent = `Test another connected word. You’ll see immediately whether it improves your ${previewScore}-point route.`;
+    elements.instruction.textContent = `Plot another nearby star and see whether it improves your ${previewScore}-point route.`;
   } else if (finishEligible) {
-    elements.instruction.textContent = `Bridge found. Finish with ${previewScore}/100, or keep improving. Higher is better.`;
+    elements.instruction.textContent = `The destination is in range. Complete at ${previewScore}/100, or keep exploring.`;
   } else if (state.bridges.length >= MAX_BRIDGES) {
-    elements.instruction.textContent = `No bridge spaces left. Use an undo to try another direction.`;
+    elements.instruction.textContent = `No bridge stars left. Undo one to chart another direction.`;
   } else if (state.bridges.length < MIN_BRIDGES) {
     const remaining = MIN_BRIDGES - state.bridges.length;
-    elements.instruction.textContent = `Move from ${currentWord()} toward ${puzzle.end}. Place ${remaining} more before the final crossing.`;
+    elements.instruction.textContent = `Follow the direct vector toward ${puzzle.end}. Plot ${remaining} more star${remaining === 1 ? "" : "s"} before the final crossing.`;
   } else {
-    elements.instruction.textContent = `Find a word connected to ${currentWord()}. A sideways move or detour is allowed.`;
+    elements.instruction.textContent = `Plot a word connected to ${currentWord()}. Your bright path shows how it bends around the direct vector.`;
   }
   renderGoalPull();
   renderRoute();
+  renderGalaxyRoute();
 }
 
 function suggestionsFor(word) {
@@ -475,6 +700,7 @@ function resetPuzzle(index = state.puzzleIndex) {
   activeMapSteps = [];
   selectedStepIndex = null;
   completedScore = null;
+  galaxyLastBridgeCount = -1;
   if (elements.bridgeFoundDialog.open) elements.bridgeFoundDialog.close();
   elements.results.hidden = true;
   setFeedback("Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
@@ -646,6 +872,30 @@ function registerWebMcp() {
   });
   addEventListener("beforeunload", () => lifecycle.abort(), { once: true });
 }
+
+elements.galaxyCanvas.addEventListener("pointerdown", (event) => {
+  galaxyDragging = true;
+  galaxyPointer = { x: event.clientX, y: event.clientY };
+  elements.galaxyCanvas.classList.add("is-dragging");
+  elements.galaxyCanvas.setPointerCapture?.(event.pointerId);
+});
+elements.galaxyCanvas.addEventListener("pointermove", (event) => {
+  if (!galaxyDragging) return;
+  galaxyTargetYaw += (event.clientX - galaxyPointer.x) * .006;
+  galaxyTargetPitch = Math.max(-.55, Math.min(.55, galaxyTargetPitch + (event.clientY - galaxyPointer.y) * .004));
+  galaxyPointer = { x: event.clientX, y: event.clientY };
+});
+const stopGalaxyDrag = (event) => {
+  galaxyDragging = false;
+  elements.galaxyCanvas.classList.remove("is-dragging");
+  if (event?.pointerId !== undefined) elements.galaxyCanvas.releasePointerCapture?.(event.pointerId);
+};
+elements.galaxyCanvas.addEventListener("pointerup", stopGalaxyDrag);
+elements.galaxyCanvas.addEventListener("pointercancel", stopGalaxyDrag);
+elements.galaxyCanvas.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  galaxyZoom = Math.max(.72, Math.min(1.42, galaxyZoom - event.deltaY * .0007));
+}, { passive: false });
 
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();

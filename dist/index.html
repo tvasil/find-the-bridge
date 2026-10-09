@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#12181d">
+    <meta name="theme-color" content="#050716">
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=6">
+    <link rel="stylesheet" href="./styles.css?v=7">
   </head>
   <body>
     <div class="page-shell">
@@ -16,87 +16,111 @@
           <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>Find the Bridge</span>
         </a>
-        <button id="open-walkthrough" class="text-button" type="button">How to play</button>
+        <div class="header-actions">
+          <span class="live-indicator"><i></i> Semantic space</span>
+          <button id="open-walkthrough" class="text-button" type="button">How to play</button>
+        </div>
       </header>
 
       <main id="game" class="game-layout" aria-busy="true">
         <section class="play-card" aria-labelledby="puzzle-title">
-          <div class="puzzle-meta">
-            <span id="puzzle-number" class="eyebrow">Shuffling puzzles…</span>
-            <button id="next-puzzle" class="text-button" type="button">Random puzzle</button>
+          <div class="galaxy-stage">
+            <canvas id="progress-galaxy" aria-label="Interactive three-dimensional semantic constellation showing your path from the origin word to the destination word"></canvas>
+            <div class="nebula-glow" aria-hidden="true"></div>
+
+            <div class="galaxy-topbar">
+              <div class="puzzle-meta">
+                <span id="puzzle-number" class="eyebrow">Shuffling puzzles…</span>
+                <button id="next-puzzle" class="text-button" type="button">New coordinates</button>
+              </div>
+              <div class="galaxy-legend" aria-hidden="true">
+                <span><i class="legend-route"></i>Your path</span>
+                <span><i class="legend-vector"></i>Direct vector</span>
+              </div>
+            </div>
+
+            <div class="destination-lockup">
+              <div>
+                <span class="endpoint-label">Origin star</span>
+                <strong id="start-word">volcano</strong>
+              </div>
+              <div class="vector-mark" aria-hidden="true"><span></span><b>direct vector</b></div>
+              <div class="endpoint-end">
+                <span class="endpoint-label">Destination star</span>
+                <strong id="end-word">bank</strong>
+              </div>
+            </div>
+
+            <div class="mission-line">
+              <h1 id="puzzle-title">Chart a line through meaning.</h1>
+              <p id="instruction">Loading the word map…</p>
+            </div>
+
+            <div class="galaxy-hint" aria-hidden="true"><span>Drag to orbit</span><i></i><span>Scroll to explore</span></div>
+
+            <div class="route-readout">
+              <div id="route-track" class="route-track" aria-label="Your word route"></div>
+              <div id="goal-pull" class="goal-pull" role="progressbar" aria-label="Progress toward the destination" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="goal-pull-heading">
+                  <span>Destination signal</span>
+                  <strong id="goal-pull-label">Starting point</strong>
+                </div>
+                <div class="goal-pull-track" aria-hidden="true">
+                  <span id="goal-pull-fill"></span>
+                  <b id="goal-pull-marker"></b>
+                  <i id="goal-pull-threshold"></i>
+                </div>
+                <div class="goal-pull-scale" aria-hidden="true"><span>Far</span><span>Landing zone</span><span>Strong</span></div>
+              </div>
+            </div>
           </div>
 
-          <div class="destination-lockup">
-            <div>
-              <span class="endpoint-label">Start</span>
-              <strong id="start-word">volcano</strong>
+          <div class="navigation-dock">
+            <div class="dock-copy">
+              <span class="eyebrow">Navigation console</span>
+              <p>Choose a word related to your last star. Each accepted word extends the constellation.</p>
             </div>
-            <div class="bridge-icon" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="endpoint-end">
-              <span class="endpoint-label">Destination</span>
-              <strong id="end-word">bank</strong>
-            </div>
-          </div>
 
-          <div class="mission-line">
-            <h1 id="puzzle-title">Build a path between ideas.</h1>
-            <p id="instruction">Loading the word map…</p>
-          </div>
-
-          <div id="goal-pull" class="goal-pull" role="progressbar" aria-label="Progress toward the destination" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div class="goal-pull-heading">
-              <span>Destination pull</span>
-              <strong id="goal-pull-label">Starting point</strong>
+            <div id="crossing-ready" class="crossing-ready" role="status" aria-live="polite" hidden>
+              <div class="crossing-signal" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div>
+                <strong>Destination in range</strong>
+                <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. Route score: <b id="crossing-score">0 / 100</b>.</span>
+              </div>
             </div>
-            <div class="goal-pull-track" aria-hidden="true">
-              <span id="goal-pull-fill"></span>
-              <b id="goal-pull-marker"></b>
-              <i id="goal-pull-threshold"></i>
-            </div>
-            <div class="goal-pull-scale" aria-hidden="true"><span>Far</span><span>Approaching</span><span>Landing zone</span><span>Strong bridge</span></div>
-          </div>
 
-          <div id="route-track" class="route-track" aria-label="Your word route"></div>
+            <form id="guess-form" class="guess-form" autocomplete="off">
+              <label id="guess-label" for="guess-input">Your next star</label>
+              <div class="input-row">
+                <div class="input-wrap"><span aria-hidden="true">✦</span><input id="guess-input" name="guess" type="text" inputmode="text" list="word-list" maxlength="28" placeholder="Type a connected word" aria-describedby="feedback" disabled></div>
+                <datalist id="word-list"></datalist>
+                <button id="place-word" class="primary-button" type="submit" disabled>Place star</button>
+              </div>
+              <div class="form-foot">
+                <p id="feedback" class="feedback" aria-live="polite">Preparing 10,000 words…</p>
+                <span id="moves-left" class="moves-left">6 bridge stars left</span>
+              </div>
+            </form>
 
-          <div id="crossing-ready" class="crossing-ready" role="status" aria-live="polite" hidden>
-            <div class="crossing-signal" aria-hidden="true"><i></i><i></i><i></i></div>
-            <div>
-              <strong>Bridge found</strong>
-              <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. Current score: <b id="crossing-score">0 / 100</b>—higher is better.</span>
+            <div class="play-actions">
+              <button id="undo-word" class="secondary-button" type="button" disabled>Undo last · 3 left</button>
+              <button id="try-improve" class="secondary-button improve-button" type="button" hidden>Keep exploring</button>
+              <button id="finish-route" class="finish-button" type="button" disabled>Destination out of range</button>
             </div>
-          </div>
-
-          <form id="guess-form" class="guess-form" autocomplete="off">
-            <label id="guess-label" for="guess-input">Your next bridge</label>
-            <div class="input-row">
-              <input id="guess-input" name="guess" type="text" inputmode="text" list="word-list" maxlength="28" placeholder="Type one word" aria-describedby="feedback" disabled>
-              <datalist id="word-list"></datalist>
-              <button id="place-word" class="primary-button" type="submit" disabled>Place word</button>
-            </div>
-            <div class="form-foot">
-              <p id="feedback" class="feedback" aria-live="polite">Preparing 10,000 words…</p>
-              <span id="moves-left" class="moves-left">6 bridges left</span>
-            </div>
-          </form>
-
-          <div class="play-actions">
-            <button id="undo-word" class="secondary-button" type="button" disabled>Undo last · 3 left</button>
-            <button id="try-improve" class="secondary-button improve-button" type="button" hidden>Keep improving</button>
-            <button id="finish-route" class="finish-button" type="button" disabled>Get closer to finish</button>
           </div>
         </section>
 
         <aside class="session-card" aria-labelledby="session-title">
           <div class="session-heading">
             <div>
-              <span class="eyebrow">Local play</span>
-              <h2 id="session-title">This session</h2>
+              <span class="eyebrow">Flight log</span>
+              <h2 id="session-title">This voyage</h2>
             </div>
             <span id="session-count" class="count-badge">0</span>
           </div>
           <div id="session-empty" class="empty-history">
-            <span aria-hidden="true">◎</span>
-            <p>Your completed routes will collect here until you close the tab.</p>
+            <span aria-hidden="true">✦</span>
+            <p>Completed constellations will collect here until you close the tab.</p>
           </div>
           <ol id="session-history" class="session-history" aria-label="Previous scores"></ol>
         </aside>
@@ -127,11 +151,11 @@
 
             <section class="map-panel" aria-labelledby="map-title">
               <div class="panel-heading">
-                <h3 id="map-title">The semantic map</h3>
+                <h3 id="map-title">Route projection</h3>
                 <span id="map-status">Select a crossing to trace it</span>
               </div>
               <canvas id="semantic-map" aria-label="Animated two-dimensional projection of the route"></canvas>
-              <p class="map-note"><strong>Scoring stays 50-dimensional.</strong> This 2D PCA map is only a flattened approximation for visualization.</p>
+              <p class="map-note"><strong>Scoring stays 50-dimensional.</strong> This final chart is a flattened view of your constellation.</p>
             </section>
           </div>
 
@@ -176,14 +200,14 @@
       </div>
       <div class="walkthrough-step" data-step="0">
         <span class="walkthrough-number">1</span>
-        <h2>Connect one idea at a time.</h2>
-        <p>Enter a word that is meaningfully connected to the previous one. It may move closer to the destination, sideways, or briefly take a detour.</p>
-        <div class="walkthrough-chips" aria-hidden="true"><span>Closer</span><span>Sideways</span><span>Detour</span></div>
+        <h2>Follow the direct vector.</h2>
+        <p>The golden line joins the origin and destination. Enter a word connected to your last one; your brighter constellation will show how your route bends around that ideal line.</p>
+        <div class="walkthrough-chips" aria-hidden="true"><span>Origin</span><span>Your path</span><span>Destination</span></div>
       </div>
       <div class="walkthrough-step" data-step="1" hidden>
         <span class="walkthrough-number">2</span>
-        <h2>Reach the landing zone.</h2>
-        <p>After at least three bridge words, you can finish once your current word is close enough to the destination. The pull meter keeps moving beyond that line toward a strong bridge.</p>
+        <h2>Every word becomes a star.</h2>
+        <p>Each accepted word stays visible and connects to the previous star in 3D space. After at least three bridge words, you can finish once your current star reaches the destination’s landing zone.</p>
         <div class="walkthrough-meter" aria-hidden="true"><i></i><b></b></div>
       </div>
       <div class="walkthrough-step" data-step="2" hidden>
@@ -198,6 +222,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="./app.js?v=6"></script>
+    <script type="module" src="./app.js?v=7"></script>
   </body>
 </html>
