@@ -56,6 +56,15 @@ To rebuild the data, pass a gzipped word2vec-format GloVe file:
 node scripts/build-embeddings.mjs /path/to/glove-wiki-gigaword-50.gz
 ```
 
+## Future improvements
+
+- Upgrade the current 50-dimensional GloVe vectors to 300 dimensions while preserving the static, browser-only architecture and 8-bit storage. For approximately 10,000 words, this would increase the uncompressed vector payload from about 500 KB to about 3 MB.
+- Build a representative benchmark of clearly related and unrelated word pairs, then recalibrate the move-acceptance and destination thresholds against real false positives and false negatives.
+- Explore a small association margin for words that make strong progress toward the destination but fall just below the connection threshold for the immediately preceding word.
+- Add an optional, privacy-preserving playtesting log or export for rejected guesses so recurring false negatives can be reviewed instead of tuning the model from anecdotes.
+- Compare higher-dimensional GloVe with a more modern embedding model. More dimensions should retain additional semantic signal, but a newer model may be needed to substantially improve polysemy and broader human associations.
+- Investigate contextual or phrase-level representations so ambiguous words such as `bank` are not limited to a single vector that blends several meanings.
+
 ## Word acceptance
 
 Words are submitted sequentially instead of filling every slot in advance. A bridge is accepted when:
