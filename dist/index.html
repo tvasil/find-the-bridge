@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=8">
+    <link rel="stylesheet" href="./styles.css?v=10">
   </head>
   <body>
     <div class="page-shell">
@@ -17,6 +17,10 @@
           <span>Find the Bridge</span>
         </a>
         <div class="header-actions">
+          <div class="mode-toggle" role="group" aria-label="Game mode">
+            <button id="classic-mode" type="button" aria-pressed="true">Classic</button>
+            <button id="tania-mode" type="button" aria-pressed="false"><span aria-hidden="true">✣</span> Tania mode</button>
+          </div>
           <span class="live-indicator"><i></i> Semantic space</span>
           <button id="open-walkthrough" class="text-button" type="button">How to play</button>
         </div>
@@ -56,7 +60,7 @@
               <p id="instruction">Loading the word map…</p>
             </div>
 
-            <div class="galaxy-hint" aria-hidden="true"><span>Drag to orbit</span><i></i><span>Scroll to explore</span></div>
+            <div class="galaxy-hint" aria-hidden="true"><span>Drag to tilt</span><i></i><span>Scroll to explore</span></div>
 
             <div class="route-readout">
               <div id="route-track" class="route-track" aria-label="Your word route"></div>
@@ -81,11 +85,42 @@
               <p>Choose a word related to your last star. Each accepted word extends the constellation.</p>
             </div>
 
+            <div id="tania-rule" class="tania-rule" hidden>
+              <span class="tania-sigil" aria-hidden="true">✣</span>
+              <div class="tania-rule-copy">
+                <strong>Build the biggest defensible arc.</strong>
+                <p>Choose a connection that feels surprising, but that you could still explain. Near-synonyms and obvious pairs don’t count.</p>
+              </div>
+              <div class="connection-band" aria-label="Connection scale: too far, playable zone, too obvious">
+                <span>Too far</span><i><b>playable zone</b></i><span>Too obvious</span>
+              </div>
+              <details class="similarity-explainer">
+                <summary><span aria-hidden="true">?</span> How distance works</summary>
+                <div class="similarity-popover">
+                  <div class="popover-heading">
+                    <span class="eyebrow">Under the hood</span>
+                    <strong>Cosine distance: how far apart two meaning-directions are.</strong>
+                  </div>
+                  <p>Each word is stored as an array of 50 numbers learned from how words appear in text. Picture that array as an arrow. L2 normalization makes every arrow the same length; its direction still carries the meaning.</p>
+                  <p>We first compare two arrows with <strong>cosine similarity</strong>, then convert it to the distance used by Tania mode: <code>cosine distance = 1 − cosine similarity</code>. Distance <b>0</b> means the same direction; larger values mean a wider semantic step.</p>
+                  <div class="similarity-scale distance-scale" aria-label="Playable cosine distance from 0.30 to 0.80">
+                    <span><b>0.00</b><small>near-identical</small></span>
+                    <span class="threshold low"><b>0.30</b><small>too obvious below</small></span>
+                    <i><em>playable distance</em></i>
+                    <span class="threshold high"><b>0.80</b><small>too far above</small></span>
+                    <span><b>1.00</b><small>no alignment</small></span>
+                  </div>
+                  <p class="formula-note"><strong>Why not distance 0–2?</strong> Mathematically, cosine similarity runs from −1 to 1, so cosine distance runs from 0 to 2. But the game rejects bridge similarity below 0.20, which means an accepted bridge’s distance can never exceed 0.80. Tania mode also rejects distance below 0.30 as too obvious.</p>
+                  <p class="example-note"><b>Examples in this word model:</b> bee → animal is a wild distance of 0.69; road → avenue is an overly obvious 0.28; cat → dog is only 0.08. These are model judgments, not universal truths. The direct start-to-goal distance may exceed 1 and is used only as the baseline for the final arc ratio.</p>
+                </div>
+              </details>
+            </div>
+
             <div id="crossing-ready" class="crossing-ready" role="status" aria-live="polite" hidden>
               <div class="crossing-signal" aria-hidden="true"><i></i><i></i><i></i></div>
               <div>
                 <strong>Destination in range</strong>
-                <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. Route score: <b id="crossing-score">0 / 100</b>.</span>
+                <span><b id="crossing-current">Your word</b> can cross to <b id="crossing-end">the destination</b>. <b id="crossing-score-label">Route score</b>: <b id="crossing-score">0 / 100</b>.</span>
               </div>
             </div>
 
@@ -128,7 +163,7 @@
           <div class="result-summary">
             <div class="score-stamp" aria-label="Overall route score">
               <strong id="score-value">0</strong>
-              <span>/ 100</span>
+              <span id="score-denominator">/ 100</span>
             </div>
             <div>
               <span class="eyebrow">Route complete</span>
@@ -144,7 +179,7 @@
                 <h3 id="step-title">Every crossing</h3>
                 <span>Select one to trace it</span>
               </div>
-              <p class="step-help"><strong>Higher is better.</strong> Each connection is cosine similarity in the full 50-dimensional space. Select one to spotlight it on the map; the weakest is marked.</p>
+              <p id="step-help" class="step-help"><strong>Higher is better.</strong> Each connection is cosine similarity in the full 50-dimensional space. Select one to spotlight it on the map; the weakest is marked.</p>
               <ol id="step-list" class="step-list"></ol>
             </section>
 
@@ -182,9 +217,9 @@
         <p><b id="bridge-found-current">Your word</b> can connect to <b id="bridge-found-end">the destination</b>.</p>
         <div class="bridge-found-score" aria-label="Current route score">
           <strong id="bridge-found-score">0</strong><span>/ 100</span>
-          <small>Higher is better</small>
+          <small id="bridge-found-score-label">Higher is better</small>
         </div>
-        <p class="bridge-found-explanation">Finish now, or keep improving. An extra word only raises your score when it strengthens the route enough to outweigh the additional step.</p>
+        <p id="bridge-found-explanation" class="bridge-found-explanation">Finish now, or keep improving. An extra word only raises your score when it strengthens the route enough to outweigh the additional step.</p>
         <div class="bridge-found-actions">
           <button id="finish-found-route" class="finish-button" type="button">Finish &amp; see route</button>
           <button id="improve-found-route" class="secondary-button improve-button" type="button">Keep improving</button>
@@ -215,12 +250,18 @@
         <p>Once you find a bridge, choose to finish or keep improving. Route scores run from 0–100, and higher is better. An extra word helps only when it strengthens the route enough to outweigh the additional step. You have six bridge spaces and three undos.</p>
         <p class="walkthrough-dimension"><strong>The game judges every move in the full 50-dimensional embedding.</strong> Only the final map is flattened into 2D.</p>
       </div>
+      <div class="walkthrough-step" data-step="3" hidden>
+        <span class="walkthrough-number">4</span>
+        <h2>Or take the scenic route.</h2>
+        <p>Switch on <strong>Tania mode</strong> to channel a favorite Codenames instinct: find the wildest connection that still holds, and discard anything too obvious. The widest valid semantic arc wins.</p>
+        <div class="walkthrough-chips tania-chips" aria-hidden="true"><span>Too far</span><span>Wild ✓</span><span>Clever ✓</span><span>Too obvious</span></div>
+      </div>
       <div class="walkthrough-actions">
         <button id="walkthrough-back" class="secondary-button" type="button" hidden>Back</button>
         <button id="walkthrough-next" class="primary-button" type="button">Next</button>
       </div>
     </dialog>
 
-    <script type="module" src="./app.js?v=8"></script>
+    <script type="module" src="./app.js?v=11"></script>
   </body>
 </html>

@@ -1,4 +1,5 @@
 export const MIN_JUMP_SIMILARITY = 0.2;
+export const TANIA_MAX_JUMP_SIMILARITY = 0.7;
 export const MIN_FINISH_SIMILARITY = 0.34;
 export const MIN_BRIDGES = 3;
 export const MAX_BRIDGES = 6;
@@ -38,9 +39,41 @@ export function classifyDirection(nextToEndSimilarity, previousToEndSimilarity) 
   return "sideways";
 }
 
-export function canAcceptWord({ nextSimilarity }) {
+export function canAcceptWord({ nextSimilarity, mode = "classic" }) {
   if (nextSimilarity < MIN_JUMP_SIMILARITY) return { accepted: false, reason: "That jump is too far apart." };
+  if (mode === "tania" && nextSimilarity > TANIA_MAX_JUMP_SIMILARITY) {
+    return { accepted: false, reason: "That connection is too obvious for Tania mode." };
+  }
   return { accepted: true };
+}
+
+export function taniaStepLabel(similarity) {
+  if (similarity > TANIA_MAX_JUMP_SIMILARITY) return "Too obvious";
+  if (similarity >= 0.5) return "Familiar";
+  if (similarity >= 0.32) return "Clever";
+  if (similarity >= MIN_JUMP_SIMILARITY) return "Wild";
+  return "Too far";
+}
+
+export function semanticArcRatio(stepSimilarities, directSimilarity) {
+  if (!stepSimilarities.length) return 0;
+  const routeDistance = stepSimilarities.reduce((sum, similarity) => sum + (1 - similarity), 0);
+  const directDistance = Math.max(0.05, 1 - directSimilarity);
+  return routeDistance / directDistance;
+}
+
+export function scoreTaniaRoute(stepSimilarities, directSimilarity) {
+  if (!stepSimilarities.length) return 0;
+  const arcRatio = semanticArcRatio(stepSimilarities, directSimilarity);
+  const arcQuality = Math.max(0, Math.min(1, (arcRatio - 1) / 3.25));
+  const bridgeSteps = stepSimilarities.slice(0, -1);
+  const scoredSteps = bridgeSteps.length ? bridgeSteps : stepSimilarities;
+  const defensibility = scoredSteps.reduce((sum, similarity) => {
+    const connection = Math.max(0, Math.min(1, (similarity - MIN_JUMP_SIMILARITY) / 0.12));
+    const wildness = Math.max(0, Math.min(1, (TANIA_MAX_JUMP_SIMILARITY - similarity) / 0.3));
+    return sum + 0.45 * connection + 0.55 * wildness;
+  }, 0) / scoredSteps.length;
+  return Math.round(100 * (0.68 * arcQuality + 0.32 * defensibility));
 }
 
 export function scoreRoute(stepSimilarities, bridgeCount, progressionFraction = 1) {

@@ -28,11 +28,29 @@ const command = (method, params = {}) => new Promise((resolve, reject) => {
 
 if (process.argv.includes("--mobile")) {
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+} else {
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 }
 
-await command("Runtime.evaluate", { expression: "localStorage.setItem('find-the-bridge-walkthrough-v1','seen')" });
+await command("Runtime.evaluate", { expression: `localStorage.setItem('find-the-bridge-walkthrough-v1','seen'); localStorage.setItem('find-the-bridge-mode-v1', ${JSON.stringify(process.argv.includes("--tania") ? "tania" : "classic")})` });
 await command("Page.reload", { ignoreCache: true });
 await new Promise((resolve) => setTimeout(resolve, 1100));
+if (process.argv.includes("--tooltip")) {
+  await command("Runtime.evaluate", { expression: "document.querySelector('.similarity-explainer summary').click()" });
+  await new Promise((resolve) => setTimeout(resolve, 180));
+}
+if (process.argv.includes("--hard-tilt")) {
+  const canvasRect = await command("Runtime.evaluate", { expression: "JSON.stringify((() => { const r = document.querySelector('#progress-galaxy').getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; })())", returnByValue: true });
+  const rect = JSON.parse(canvasRect.result.value);
+  const startX = rect.left + rect.width * .75;
+  const endX = rect.left + 4;
+  const y = rect.top + rect.height * .55;
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: startX, y });
+  await command("Input.dispatchMouseEvent", { type: "mousePressed", x: startX, y, button: "left", clickCount: 1 });
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: endX, y, button: "left", buttons: 1 });
+  await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: endX, y, button: "left", clickCount: 1 });
+  await new Promise((resolve) => setTimeout(resolve, 650));
+}
 const demoWords = process.argv.slice(3).filter((argument) => !argument.startsWith("--"));
 const expectedStart = demoWords.shift();
 if (expectedStart) {
@@ -49,7 +67,10 @@ for (const word of demoWords) {
   });
   await new Promise((resolve) => setTimeout(resolve, 700));
 }
-if (process.argv.includes("--improve")) {
+if (process.argv.includes("--finish")) {
+  await command("Runtime.evaluate", { expression: "if (document.querySelector('#bridge-found-dialog')?.open) document.querySelector('#finish-found-route').click(); else if (!document.querySelector('#finish-route').disabled) document.querySelector('#finish-route').click()" });
+  await new Promise((resolve) => setTimeout(resolve, 900));
+} else if (process.argv.includes("--improve")) {
   await command("Runtime.evaluate", { expression: "if (document.querySelector('#bridge-found-dialog')?.open) document.querySelector('#improve-found-route').click(); else if (!document.querySelector('#try-improve').hidden) document.querySelector('#try-improve').click()" });
   await new Promise((resolve) => setTimeout(resolve, 250));
 } else {
@@ -58,7 +79,7 @@ if (process.argv.includes("--improve")) {
 if (process.argv.includes("--type-test")) {
   await command("Runtime.evaluate", { expression: "document.querySelector('#next-puzzle').focus(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', bubbles: true }))" });
 }
-await command("Runtime.evaluate", { expression: "window.scrollTo(0, 0)" });
+await command("Runtime.evaluate", { expression: process.argv.includes("--results") ? "document.querySelector('#results').scrollIntoView()" : "window.scrollTo(0, 0)" });
 const diagnostics = await command("Runtime.evaluate", {
   expression: `JSON.stringify({
     viewport: [innerWidth, innerHeight],
@@ -67,6 +88,12 @@ const diagnostics = await command("Runtime.evaluate", {
     title: document.title,
     canvas: (() => { const r = document.querySelector('#progress-galaxy').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })(),
     inputEnabled: !document.querySelector('#guess-input').disabled,
+    mode: document.querySelector('#tania-mode').getAttribute('aria-pressed') === 'true' ? 'tania' : 'classic',
+    taniaRuleVisible: !document.querySelector('#tania-rule').hidden,
+    similarityExplainerOpen: document.querySelector('.similarity-explainer').open,
+    similarityPopover: (() => { const details = document.querySelector('.similarity-explainer'); if (!details.open) return null; const r = document.querySelector('.similarity-popover').getBoundingClientRect(); const p = document.querySelector('.play-card').getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), width: Math.round(r.width), playCardBottom: Math.round(p.bottom), clippedByCard: r.bottom > p.bottom }; })(),
+    resultsVisible: !document.querySelector('#results').hidden,
+    resultScore: document.querySelector('#score-value').textContent,
     inputValue: document.querySelector('#guess-input').value,
     inputWidth: Math.round(document.querySelector('#guess-input').getBoundingClientRect().width),
     autocomplete: document.querySelector('#guess-input').autocomplete,

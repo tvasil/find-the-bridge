@@ -42,6 +42,11 @@ for (const route of knownRoutes) {
 
 assert.equal(canAcceptWord({ nextSimilarity: similarity("country", "parliament") }).accepted, true);
 assert.equal(
+  canAcceptWord({ nextSimilarity: similarity("road", "avenue"), mode: "tania" }).accepted,
+  false,
+  "road → avenue should be too obvious for Tania mode",
+);
+assert.equal(
   classifyDirection(similarity("parliament", "democracy"), similarity("country", "democracy")),
   "detour",
   "country → parliament should be an accepted detour",

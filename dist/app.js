@@ -2,22 +2,32 @@ import {
   MAX_BRIDGES,
   MIN_BRIDGES,
   MIN_FINISH_SIMILARITY,
+  TANIA_MAX_JUMP_SIMILARITY,
   canAcceptWord,
   classifyDirection,
   cosineInt8,
   scoreRoute,
+  scoreTaniaRoute,
+  semanticArcRatio,
   stepLabel,
-} from "./scoring.mjs?v=6";
+  taniaStepLabel,
+} from "./scoring.mjs?v=7";
 
 const MAX_UNDOS = 3;
+const MAX_GALAXY_YAW = 0.68;
 const PULL_DISPLAY_MIN = -0.05;
 const PULL_DISPLAY_MAX = 0.75;
 const WALKTHROUGH_KEY = "find-the-bridge-walkthrough-v1";
+const MODE_KEY = "find-the-bridge-mode-v1";
 
 let puzzles = [];
 
 const elements = {
   game: document.querySelector("#game"),
+  classicMode: document.querySelector("#classic-mode"),
+  taniaMode: document.querySelector("#tania-mode"),
+  taniaRule: document.querySelector("#tania-rule"),
+  similarityExplainer: document.querySelector(".similarity-explainer"),
   puzzleNumber: document.querySelector("#puzzle-number"),
   destinationLockup: document.querySelector(".destination-lockup"),
   startWord: document.querySelector("#start-word"),
@@ -34,11 +44,14 @@ const elements = {
   crossingReady: document.querySelector("#crossing-ready"),
   crossingCurrent: document.querySelector("#crossing-current"),
   crossingEnd: document.querySelector("#crossing-end"),
+  crossingScoreLabel: document.querySelector("#crossing-score-label"),
   crossingScore: document.querySelector("#crossing-score"),
   bridgeFoundDialog: document.querySelector("#bridge-found-dialog"),
   bridgeFoundCurrent: document.querySelector("#bridge-found-current"),
   bridgeFoundEnd: document.querySelector("#bridge-found-end"),
   bridgeFoundScore: document.querySelector("#bridge-found-score"),
+  bridgeFoundScoreLabel: document.querySelector("#bridge-found-score-label"),
+  bridgeFoundExplanation: document.querySelector("#bridge-found-explanation"),
   finishFoundRoute: document.querySelector("#finish-found-route"),
   improveFoundRoute: document.querySelector("#improve-found-route"),
   form: document.querySelector("#guess-form"),
@@ -56,12 +69,15 @@ const elements = {
   sessionHistory: document.querySelector("#session-history"),
   results: document.querySelector("#results"),
   scoreValue: document.querySelector("#score-value"),
+  scoreDenominator: document.querySelector("#score-denominator"),
   scoreNote: document.querySelector("#score-note"),
+  stepHelp: document.querySelector("#step-help"),
   stepList: document.querySelector("#step-list"),
   canvas: document.querySelector("#semantic-map"),
   mapStatus: document.querySelector("#map-status"),
   playAgain: document.querySelector("#play-again"),
   revealStrongRoute: document.querySelector("#reveal-strong-route"),
+  strongRoutePanel: document.querySelector(".strong-route-panel"),
   strongRouteReveal: document.querySelector("#strong-route-reveal"),
   strongRouteWords: document.querySelector("#strong-route-words"),
   strongRouteNote: document.querySelector("#strong-route-note"),
@@ -84,6 +100,7 @@ let activeMapSteps = [];
 let selectedStepIndex = null;
 let walkthroughStep = 0;
 let completedScore = null;
+let gameMode = "classic";
 let galaxyAnimation;
 let galaxyRoute = [];
 let galaxyRouteChangedAt = 0;
@@ -132,7 +149,12 @@ function scoreDataForRoute(route) {
   const progressionFraction = directions.length
     ? directions.reduce((sum, direction) => sum + directionValue[direction], 0) / directions.length
     : 1;
-  return { route, steps, directions, score: scoreRoute(steps, route.length - 2, progressionFraction) };
+  const directSimilarity = similarity(route[0], destination);
+  const arcRatio = semanticArcRatio(steps, directSimilarity);
+  const score = gameMode === "tania"
+    ? scoreTaniaRoute(steps, directSimilarity)
+    : scoreRoute(steps, route.length - 2, progressionFraction);
+  return { route, steps, directions, score, arcRatio };
 }
 
 function routeDirections(bridges = state.bridges) {
@@ -171,14 +193,43 @@ function showBridgeFoundDialog(score) {
   elements.bridgeFoundCurrent.textContent = `“${currentWord()}”`;
   elements.bridgeFoundEnd.textContent = `“${puzzle.end}”`;
   elements.bridgeFoundScore.textContent = score;
+  elements.bridgeFoundExplanation.textContent = gameMode === "tania"
+    ? "Finish now, or keep bending the route. A wilder valid connection can enlarge your semantic arc—but anything too obvious is discarded."
+    : "Finish now, or keep improving. An extra word only raises your score when it strengthens the route enough to outweigh the additional step.";
   if (!elements.bridgeFoundDialog.open && !elements.walkthrough.open) elements.bridgeFoundDialog.showModal();
+}
+
+function renderMode() {
+  const isTania = gameMode === "tania";
+  document.body.classList.toggle("tania-mode", isTania);
+  elements.classicMode.setAttribute("aria-pressed", String(!isTania));
+  elements.taniaMode.setAttribute("aria-pressed", String(isTania));
+  elements.taniaRule.hidden = !isTania;
+  if (!isTania) elements.similarityExplainer.open = false;
+  elements.crossingScoreLabel.textContent = isTania ? "Arc score" : "Route score";
+  elements.bridgeFoundScoreLabel.textContent = isTania ? "Arc score · higher is better" : "Higher is better";
+  elements.scoreDenominator.textContent = isTania ? "/ 100 arc" : "/ 100";
+}
+
+function setGameMode(mode) {
+  if (!embeddingData || !["classic", "tania"].includes(mode) || mode === gameMode) return;
+  gameMode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); }
+  catch { /* Mode remains active for this page load. */ }
+  renderMode();
+  resetPuzzle(state.puzzleIndex);
+  setFeedback(mode === "tania"
+    ? "Tania mode on. Find a surprising connection you can still explain; obvious pairs are discarded."
+    : "Classic mode on. Build the smoothest convincing route toward the destination.", "neutral");
 }
 
 function beginImproving() {
   if (!canFinish() || state.bridges.length >= MAX_BRIDGES) return;
   if (elements.bridgeFoundDialog.open) elements.bridgeFoundDialog.close();
   state.improving = true;
-  setFeedback("Add a connected word. We’ll show exactly how it changes your score.");
+  setFeedback(gameMode === "tania"
+    ? "Add a wilder valid connection. We’ll show whether it enlarges your arc."
+    : "Add a connected word. We’ll show exactly how it changes your score.");
   renderPuzzle();
   elements.input.focus();
 }
@@ -318,10 +369,6 @@ function drawGalaxyFrame(now) {
 
   galaxyYaw += (galaxyTargetYaw - galaxyYaw) * .055;
   galaxyPitch += (galaxyTargetPitch - galaxyPitch) * .055;
-  if (!galaxyDragging && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    galaxyTargetYaw += .000055;
-  }
-
   context.fillStyle = "#050716";
   context.fillRect(0, 0, width, height);
   const blueCloud = context.createRadialGradient(width * .23, height * .42, 0, width * .23, height * .42, width * .42);
@@ -455,7 +502,8 @@ function renderPuzzle() {
   const justUnlocked = finishEligible && !state.finishReady;
   if (!finishEligible) state.improving = false;
   state.finishReady = finishEligible;
-  const previewScore = finishEligible ? routeScoreData().score : null;
+  const previewData = finishEligible ? routeScoreData() : null;
+  const previewScore = previewData?.score ?? null;
   const showForm = !state.finished
     && state.bridges.length < MAX_BRIDGES
     && (!finishEligible || state.improving);
@@ -464,7 +512,9 @@ function renderPuzzle() {
   elements.endWord.textContent = puzzle.end;
   requestAnimationFrame(fitEndpointWords);
   elements.form.hidden = !showForm;
-  elements.input.placeholder = finishEligible ? `A star that improves “${currentWord()}”` : `A word near “${currentWord()}”`;
+  elements.input.placeholder = gameMode === "tania"
+    ? `A surprising link from “${currentWord()}”`
+    : finishEligible ? `A star that improves “${currentWord()}”` : `A word near “${currentWord()}”`;
   elements.input.value = "";
   elements.input.disabled = !showForm;
   elements.placeWord.disabled = elements.input.disabled;
@@ -473,14 +523,18 @@ function renderPuzzle() {
   elements.undo.textContent = `Undo last · ${undosLeft} left`;
   elements.tryImprove.hidden = !finishEligible || state.improving || state.bridges.length >= MAX_BRIDGES;
   elements.finish.disabled = state.finished || !finishEligible;
-  elements.finish.textContent = finishEligible ? `Complete constellation · ${previewScore}/100` : "Destination out of range";
+  elements.finish.textContent = finishEligible
+    ? gameMode === "tania" ? `Complete arc · ${previewScore}/100` : `Complete constellation · ${previewScore}/100`
+    : "Destination out of range";
   elements.finish.classList.toggle("is-ready", finishEligible);
-  elements.guessLabel.textContent = finishEligible ? "Try to improve your constellation" : "Your next star";
-  elements.placeWord.textContent = finishEligible ? "Test this star" : "Place star";
+  elements.guessLabel.textContent = gameMode === "tania"
+    ? finishEligible ? "Make the arc wilder" : "Your next wild connection"
+    : finishEligible ? "Try to improve your constellation" : "Your next star";
+  elements.placeWord.textContent = gameMode === "tania" ? "Test connection" : finishEligible ? "Test this star" : "Place star";
   elements.crossingReady.hidden = !finishEligible;
   elements.crossingCurrent.textContent = `“${currentWord()}”`;
   elements.crossingEnd.textContent = `“${puzzle.end}”`;
-  elements.crossingScore.textContent = `${previewScore ?? 0} / 100`;
+  elements.crossingScore.textContent = `${previewScore ?? 0} / 100${gameMode === "tania" && previewData ? ` · ${previewData.arcRatio.toFixed(1)}× arc` : ""}`;
   elements.playCard.classList.toggle("route-ready", finishEligible);
   if (justUnlocked) {
     elements.crossingReady.classList.remove("celebrate");
@@ -498,18 +552,28 @@ function renderPuzzle() {
   elements.movesLeft.textContent = `${state.bridges.length} of ${MAX_BRIDGES} bridge stars placed`;
 
   if (state.finished) {
-    elements.instruction.textContent = `Constellation complete in ${state.bridges.length} bridge stars.`;
+    elements.instruction.textContent = gameMode === "tania"
+      ? `Semantic arc complete in ${state.bridges.length} bridge stars.`
+      : `Constellation complete in ${state.bridges.length} bridge stars.`;
   } else if (finishEligible && state.improving) {
-    elements.instruction.textContent = `Plot another nearby star and see whether it improves your ${previewScore}-point route.`;
+    elements.instruction.textContent = gameMode === "tania"
+      ? `The arc is ${previewData.arcRatio.toFixed(1)}× the direct distance. Can you bend it farther without breaking the connection?`
+      : `Plot another nearby star and see whether it improves your ${previewScore}-point route.`;
   } else if (finishEligible) {
-    elements.instruction.textContent = `The destination is in range. Complete at ${previewScore}/100, or keep exploring.`;
+    elements.instruction.textContent = gameMode === "tania"
+      ? `The destination is in range. Bank a ${previewData.arcRatio.toFixed(1)}× arc, or make it wilder.`
+      : `The destination is in range. Complete at ${previewScore}/100, or keep exploring.`;
   } else if (state.bridges.length >= MAX_BRIDGES) {
     elements.instruction.textContent = `No bridge stars left. Undo one to chart another direction.`;
   } else if (state.bridges.length < MIN_BRIDGES) {
     const remaining = MIN_BRIDGES - state.bridges.length;
-    elements.instruction.textContent = `Follow the direct vector toward ${puzzle.end}. Plot ${remaining} more star${remaining === 1 ? "" : "s"} before the final crossing.`;
+    elements.instruction.textContent = gameMode === "tania"
+      ? `Take the scenic route toward ${puzzle.end}. Add ${remaining} more defensible connection${remaining === 1 ? "" : "s"} before the final crossing.`
+      : `Follow the direct vector toward ${puzzle.end}. Plot ${remaining} more star${remaining === 1 ? "" : "s"} before the final crossing.`;
   } else {
-    elements.instruction.textContent = `Plot a word connected to ${currentWord()}. Your bright path shows how it bends around the direct vector.`;
+    elements.instruction.textContent = gameMode === "tania"
+      ? `Connect from ${currentWord()}, but avoid synonyms and obvious neighbors. Bigger bends score higher.`
+      : `Plot a word connected to ${currentWord()}. Your bright path shows how it bends around the direct vector.`;
   }
   renderGoalPull();
   renderRoute();
@@ -547,9 +611,11 @@ function attemptWord(rawWord) {
   const jump = similarity(previous, word);
   const previousToEnd = similarity(previous, puzzle.end);
   const wordToEnd = similarity(word, puzzle.end);
-  const verdict = canAcceptWord({ nextSimilarity: jump });
+  const verdict = canAcceptWord({ nextSimilarity: jump, mode: gameMode });
   if (!verdict.accepted) {
-    const detail = `That jump is too wide. “${word}” isn’t connected enough to “${previous}”.`;
+    const detail = gameMode === "tania" && jump > TANIA_MAX_JUMP_SIMILARITY
+      ? `Too obvious for Tania mode. “${word}” is almost a synonym or near-neighbor of “${previous}”. Try a less direct connection.`
+      : `That jump is too wide. “${word}” isn’t connected enough to “${previous}”.`;
     setFeedback(detail, "bad");
     return { accepted: false, reason: detail, similarity: jump };
   }
@@ -574,7 +640,16 @@ function attemptWord(rawWord) {
     else if (delta < 0) setFeedback(`${directionLead}. Route slipped: ${previousScore} → ${nextScore} (${delta}). Undo it or keep exploring.`, "warn");
     else setFeedback(`${directionLead}. Route score stays at ${nextScore}.`, "neutral");
   } else {
-    setFeedback(...directionFeedback[direction]);
+    if (gameMode === "tania") {
+      const label = taniaStepLabel(jump);
+      const tone = label === "Wild" || label === "Clever" ? "good" : "neutral";
+      const guidance = label === "Familiar"
+        ? "Valid—but a less obvious connection would make a wider arc."
+        : "The association holds and leaves room for a wide arc.";
+      setFeedback(`${label} connection accepted. ${guidance}`, tone);
+    } else {
+      setFeedback(...directionFeedback[direction]);
+    }
   }
   renderPuzzle();
   if (!elements.input.disabled) elements.input.focus();
@@ -613,7 +688,7 @@ function renderHistory() {
     const score = document.createElement("b");
     score.textContent = entry.score;
     const detail = document.createElement("span");
-    detail.textContent = `${entry.bridges} bridge${entry.bridges === 1 ? "" : "s"}`;
+    detail.textContent = `${entry.mode === "tania" ? "Tania · " : ""}${entry.bridges} bridge${entry.bridges === 1 ? "" : "s"}${entry.arcRatio ? ` · ${entry.arcRatio.toFixed(1)}× arc` : ""}`;
     item.append(route, score, detail);
     return item;
   }));
@@ -622,16 +697,16 @@ function renderHistory() {
 function completeRoute() {
   if (!canFinish() || state.finished) return { completed: false, reason: "The route is not close enough to finish yet." };
   const puzzle = currentPuzzle();
-  const { route, steps, score } = routeScoreData();
+  const { route, steps, score, arcRatio } = routeScoreData();
   if (elements.bridgeFoundDialog.open) elements.bridgeFoundDialog.close();
   state.finished = true;
   renderPuzzle();
-  renderResults(route, steps, score);
-  saveSessionEntry({ start: puzzle.start, end: puzzle.end, score, bridges: state.bridges.length, route });
-  return { completed: true, score, route, stepSimilarities: steps.map((value) => Number(value.toFixed(3))) };
+  renderResults(route, steps, score, arcRatio);
+  saveSessionEntry({ start: puzzle.start, end: puzzle.end, score, bridges: state.bridges.length, route, mode: gameMode, arcRatio: gameMode === "tania" ? arcRatio : null });
+  return { completed: true, score, route, mode: gameMode, arcRatio: Number(arcRatio.toFixed(3)), stepSimilarities: steps.map((value) => Number(value.toFixed(3))) };
 }
 
-function renderResults(route, steps, score) {
+function renderResults(route, steps, score, arcRatio) {
   elements.results.hidden = false;
   completedScore = score;
   activeMapRoute = route;
@@ -640,14 +715,21 @@ function renderResults(route, steps, score) {
   elements.scoreValue.textContent = score;
   const weakest = Math.min(...steps);
   const weakestIndex = steps.indexOf(weakest);
-  const label = score >= 78 ? "Elegant and steady." : score >= 58 ? "A convincing route." : "A daring route with a wide jump.";
+  const label = gameMode === "tania"
+    ? score >= 78 ? "Magnificently indirect." : score >= 58 ? "A properly wild connection." : "A promising semantic detour."
+    : score >= 78 ? "Elegant and steady." : score >= 58 ? "A convincing route." : "A daring route with a wide jump.";
   const directionCounts = routeDirections().reduce((counts, direction) => ({ ...counts, [direction]: counts[direction] + 1 }), { closer: 0, sideways: 0, detour: 0 });
   const directionSummary = [
     directionCounts.closer && `${directionCounts.closer} closer`,
     directionCounts.sideways && `${directionCounts.sideways} sideways`,
     directionCounts.detour && `${directionCounts.detour} detour${directionCounts.detour === 1 ? "" : "s"}`,
   ].filter(Boolean).join(" · ");
-  elements.scoreNote.textContent = `${label} Higher scores mean smoother, stronger, more efficient routes. Your weakest connection was ${route[weakestIndex]} → ${route[weakestIndex + 1]} at ${weakest.toFixed(2)}. ${directionSummary}.`;
+  elements.scoreNote.textContent = gameMode === "tania"
+    ? `${label} Your path traveled ${arcRatio.toFixed(1)}× the direct semantic distance. The wildest link was ${route[weakestIndex]} → ${route[weakestIndex + 1]} at ${weakest.toFixed(2)} similarity. Bigger valid arcs score higher.`
+    : `${label} Higher scores mean smoother, stronger, more efficient routes. Your weakest connection was ${route[weakestIndex]} → ${route[weakestIndex + 1]} at ${weakest.toFixed(2)}. ${directionSummary}.`;
+  elements.stepHelp.innerHTML = gameMode === "tania"
+    ? "<strong>The sweet spot is 0.20–0.70.</strong> Lower similarity makes a wilder connection; anything above 0.70 is too obvious. The final landing is exempt."
+    : "<strong>Higher is better.</strong> Each connection is cosine similarity in the full 50-dimensional space. Select one to spotlight it on the map; the weakest is marked.";
   elements.stepList.replaceChildren(...steps.map((value, index) => {
     const row = document.createElement("li");
     row.className = `step-row${index === weakestIndex ? " weakest" : ""}`;
@@ -655,17 +737,19 @@ function renderResults(route, steps, score) {
     button.type = "button";
     button.className = "step-button";
     button.setAttribute("aria-pressed", "false");
-    button.setAttribute("aria-label", `Trace ${route[index]} to ${route[index + 1]}, connection strength ${value.toFixed(2)}, higher is better${index === weakestIndex ? ", weakest link" : ""}`);
+    button.setAttribute("aria-label", gameMode === "tania"
+      ? `Trace ${route[index]} to ${route[index + 1]}, similarity ${value.toFixed(2)}${index === weakestIndex ? ", wildest link" : ""}`
+      : `Trace ${route[index]} to ${route[index + 1]}, connection strength ${value.toFixed(2)}, higher is better${index === weakestIndex ? ", weakest link" : ""}`);
     const pair = document.createElement("div");
     pair.className = "step-pair";
     pair.append(document.createTextNode(route[index]), Object.assign(document.createElement("span"), { textContent: " → " }), document.createTextNode(route[index + 1]));
-    if (index === weakestIndex) pair.append(Object.assign(document.createElement("small"), { className: "weakest-note", textContent: "Weakest link" }));
+    if (index === weakestIndex) pair.append(Object.assign(document.createElement("small"), { className: "weakest-note", textContent: gameMode === "tania" ? "Wildest link" : "Weakest link" }));
     const number = document.createElement("span");
     number.className = "step-score";
     number.textContent = value.toFixed(2);
     const badge = document.createElement("span");
     badge.className = "step-label";
-    badge.textContent = stepLabel(value);
+    badge.textContent = gameMode === "tania" && index < steps.length - 1 ? taniaStepLabel(value) : stepLabel(value);
     button.append(pair, number, badge);
     button.addEventListener("click", () => selectStep(index, route, steps));
     row.append(button);
@@ -673,7 +757,8 @@ function renderResults(route, steps, score) {
   }));
   elements.mapStatus.textContent = "Select a crossing to trace it";
   elements.strongRouteReveal.hidden = true;
-  elements.revealStrongRoute.hidden = !Array.isArray(currentPuzzle().strongRoute);
+  elements.strongRoutePanel.hidden = gameMode === "tania";
+  elements.revealStrongRoute.hidden = gameMode === "tania" || !Array.isArray(currentPuzzle().strongRoute);
   drawSemanticMap(route);
   elements.results.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
@@ -718,7 +803,10 @@ function resetPuzzle(index = state.puzzleIndex) {
   galaxyLastBridgeCount = -1;
   if (elements.bridgeFoundDialog.open) elements.bridgeFoundDialog.close();
   elements.results.hidden = true;
-  setFeedback("Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
+  setFeedback(gameMode === "tania"
+    ? "Make a surprising but defensible connection. Open “How distance works” for the technical rule."
+    : "Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
+  renderMode();
   renderPuzzle();
   elements.input.focus();
 }
@@ -857,14 +945,16 @@ function registerWebMcp() {
   register({
     name: "start_bridge_puzzle",
     title: "Start bridge puzzle",
-    description: "Start one of the visible Find the Bridge puzzles and reset its route.",
-    inputSchema: { type: "object", properties: { puzzleId: { type: "string", enum: puzzles.map(({ id }) => id) } }, required: ["puzzleId"], additionalProperties: false },
+    description: "Start one of the visible Find the Bridge puzzles in Classic or Tania mode and reset its route.",
+    inputSchema: { type: "object", properties: { puzzleId: { type: "string", enum: puzzles.map(({ id }) => id) }, mode: { type: "string", enum: ["classic", "tania"] } }, required: ["puzzleId"], additionalProperties: false },
     annotations: { readOnlyHint: false, untrustedContentHint: false },
     execute(input) {
       const index = puzzles.findIndex(({ id }) => id === input?.puzzleId);
       if (index < 0) throw new Error("Unknown puzzleId");
+      if (input?.mode) gameMode = input.mode;
+      renderMode();
       resetPuzzle(index);
-      return { puzzle: puzzles[index], route: [puzzles[index].start] };
+      return { puzzle: puzzles[index], mode: gameMode, route: [puzzles[index].start] };
     },
   });
   register({
@@ -897,7 +987,7 @@ elements.galaxyCanvas.addEventListener("pointerdown", (event) => {
 });
 elements.galaxyCanvas.addEventListener("pointermove", (event) => {
   if (!galaxyDragging) return;
-  galaxyTargetYaw += (event.clientX - galaxyPointer.x) * .006;
+  galaxyTargetYaw = Math.max(-MAX_GALAXY_YAW, Math.min(MAX_GALAXY_YAW, galaxyTargetYaw + (event.clientX - galaxyPointer.x) * .006));
   galaxyTargetPitch = Math.max(-.55, Math.min(.55, galaxyTargetPitch + (event.clientY - galaxyPointer.y) * .004));
   galaxyPointer = { x: event.clientX, y: event.clientY };
 });
@@ -914,6 +1004,11 @@ elements.galaxyCanvas.addEventListener("wheel", (event) => {
 }, { passive: false });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && elements.similarityExplainer.open) {
+    elements.similarityExplainer.open = false;
+    elements.similarityExplainer.querySelector("summary")?.focus();
+    return;
+  }
   if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || !/^[a-z]$/i.test(event.key)) return;
   if (elements.input.disabled || elements.form.hidden || elements.walkthrough.open || elements.bridgeFoundDialog.open) return;
   const active = document.activeElement;
@@ -924,6 +1019,11 @@ document.addEventListener("keydown", (event) => {
   elements.input.focus({ preventScroll: true });
   elements.input.setRangeText(event.key, start, end, "end");
   elements.input.dispatchEvent(new Event("input", { bubbles: true }));
+});
+document.addEventListener("pointerdown", (event) => {
+  if (elements.similarityExplainer.open && !elements.similarityExplainer.contains(event.target)) {
+    elements.similarityExplainer.open = false;
+  }
 });
 
 elements.form.addEventListener("submit", (event) => {
@@ -948,6 +1048,8 @@ elements.finish.addEventListener("click", completeRoute);
 elements.finishFoundRoute.addEventListener("click", completeRoute);
 elements.improveFoundRoute.addEventListener("click", beginImproving);
 elements.revealStrongRoute.addEventListener("click", revealStrongRoute);
+elements.classicMode.addEventListener("click", () => setGameMode("classic"));
+elements.taniaMode.addEventListener("click", () => setGameMode("tania"));
 elements.nextPuzzle.addEventListener("click", () => resetPuzzle(state.puzzleIndex + 1));
 elements.playAgain.addEventListener("click", () => resetPuzzle(state.puzzleIndex + 1));
 elements.openWalkthrough.addEventListener("click", openWalkthrough);
@@ -1001,10 +1103,15 @@ async function initialize() {
     const puzzleData = await puzzlesResponse.json();
     puzzles = shufflePuzzleDeck(puzzleData.puzzles);
     indexByWord = new Map(embeddingData.words.map((word, index) => [word, index]));
+    try { gameMode = localStorage.getItem(MODE_KEY) === "tania" ? "tania" : "classic"; }
+    catch { gameMode = "classic"; }
+    renderMode();
     elements.game.setAttribute("aria-busy", "false");
     elements.input.disabled = false;
     elements.placeWord.disabled = false;
-    setFeedback("Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
+    setFeedback(gameMode === "tania"
+      ? "Tania mode is on. Aim for the widest arc using surprising connections you can still explain."
+      : "Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
     renderHistory();
     renderPuzzle();
     registerWebMcp();
