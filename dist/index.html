@@ -7,7 +7,7 @@
     <meta name="description" content="Connect two distant ideas, one word at a time.">
     <title>Find the Bridge</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312181d'/%3E%3Ccircle cx='14' cy='38' r='7' fill='%23f8ff69'/%3E%3Ccircle cx='32' cy='24' r='7' fill='%23ff7657'/%3E%3Ccircle cx='50' cy='38' r='7' fill='%234ce0c1'/%3E%3Cpath d='M19 34L27 28M37 28L45 34' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="./styles.css?v=10">
+    <link rel="stylesheet" href="./styles.css?v=13">
   </head>
   <body>
     <div class="page-shell">
@@ -29,9 +29,6 @@
       <main id="game" class="game-layout" aria-busy="true">
         <section class="play-card" aria-labelledby="puzzle-title">
           <div class="galaxy-stage">
-            <canvas id="progress-galaxy" aria-label="Interactive three-dimensional semantic constellation showing your path from the origin word to the destination word"></canvas>
-            <div class="nebula-glow" aria-hidden="true"></div>
-
             <div class="galaxy-topbar">
               <div class="puzzle-meta">
                 <span id="puzzle-number" class="eyebrow">Shuffling puzzles…</span>
@@ -55,12 +52,11 @@
               </div>
             </div>
 
-            <div class="mission-line">
-              <h1 id="puzzle-title">Chart a line through meaning.</h1>
-              <p id="instruction">Loading the word map…</p>
+            <div class="constellation-viewport">
+              <canvas id="progress-galaxy" aria-label="Interactive three-dimensional semantic constellation showing your path from the origin word to the destination word"></canvas>
+              <div class="nebula-glow" aria-hidden="true"></div>
+              <div class="galaxy-hint" aria-hidden="true"><span>Drag to orbit</span><i></i><span>Scroll to zoom</span></div>
             </div>
-
-            <div class="galaxy-hint" aria-hidden="true"><span>Drag to tilt</span><i></i><span>Scroll to explore</span></div>
 
             <div class="route-readout">
               <div id="route-track" class="route-track" aria-label="Your word route"></div>
@@ -80,6 +76,10 @@
           </div>
 
           <div class="navigation-dock">
+            <div class="mission-line">
+              <h1 id="puzzle-title">Chart a line through meaning.</h1>
+              <p id="instruction">Loading the word map…</p>
+            </div>
             <div class="dock-copy">
               <span class="eyebrow">Navigation console</span>
               <p>Choose a word related to your last star. Each accepted word extends the constellation.</p>
@@ -262,6 +262,6 @@
       </div>
     </dialog>
 
-    <script type="module" src="./app.js?v=11"></script>
+    <script type="module" src="./app.js?v=13"></script>
   </body>
 </html>

@@ -28,6 +28,7 @@ body.tania-mode .mode-toggle button[aria-pressed="true"] { background: linear-gr
 .game-layout { display: grid; grid-template-columns: minmax(0,1fr) 245px; gap: 16px; align-items: start; }
 .play-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: rgba(5,8,24,.72); box-shadow: 0 28px 90px rgba(0,0,20,.46),inset 0 1px 0 rgba(255,255,255,.05); }
 .galaxy-stage { position: relative; min-height: 660px; overflow: hidden; isolation: isolate; }
+@media (min-width:761px) { .galaxy-stage { height: clamp(470px,56vh,660px); min-height: 0; } }
 #progress-galaxy { position: absolute; inset: 0; z-index: -3; display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; } #progress-galaxy.is-dragging { cursor: grabbing; }
 .nebula-glow { position: absolute; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(ellipse at 48% 43%,transparent 0 18%,rgba(7,10,32,.06) 35%,rgba(3,5,18,.5) 78%); }
 .galaxy-stage::after { position: absolute; inset: auto 0 0; z-index: -1; height: 50%; content: ""; pointer-events: none; background: linear-gradient(180deg,transparent,rgba(3,5,19,.72) 62%,rgba(4,7,23,.98)); }
@@ -37,10 +38,11 @@ body.tania-mode .mode-toggle button[aria-pressed="true"] { background: linear-gr
 .galaxy-legend { display: flex; align-items: center; gap: 18px; color: #9eabc9; font-size: .72rem; } .galaxy-legend span { display: flex; align-items: center; gap: 7px; } .galaxy-legend i { width: 24px; height: 1px; }
 .legend-route { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); } .legend-vector { border-top: 1px dashed rgba(255,213,128,.7); }
 .destination-lockup { display: grid; grid-template-columns: minmax(0,1fr) minmax(110px,.5fr) minmax(0,1fr); align-items: start; gap: 22px; padding: 34px 5.5% 0; pointer-events: none; }
-.destination-lockup>div { min-width: 0; } .destination-lockup strong { display: block; width: 100%; overflow: hidden; color: #fff; font-family: Iowan Old Style,Baskerville,Georgia,serif; font-size: var(--endpoint-size,clamp(2.4rem,5.5vw,5.2rem)); font-weight: 400; line-height: 1; letter-spacing: -.055em; text-overflow: clip; text-shadow: 0 2px 22px rgba(112,177,255,.5); white-space: nowrap; }
+.destination-lockup>div { min-width: 0; } .destination-lockup strong { display: block; width: 100%; overflow: visible; padding-inline: .12em; color: #fff; font-family: Iowan Old Style,Baskerville,Georgia,serif; font-size: var(--endpoint-size,clamp(2.4rem,5.5vw,5.2rem)); font-weight: 400; line-height: 1.08; letter-spacing: -.055em; text-shadow: 0 2px 22px rgba(112,177,255,.5); white-space: nowrap; }
 .endpoint-label { display: block; margin-bottom: 8px; color: var(--cyan); font-size: .7rem; font-weight: 760; letter-spacing: .17em; text-transform: uppercase; } .endpoint-end { text-align: right; } .endpoint-end .endpoint-label { color: var(--gold); }
 .vector-mark { display: grid; place-items: center; padding-top: 24px; } .vector-mark span { display: block; width: 100%; border-top: 1px dashed rgba(255,213,128,.5); } .vector-mark b { margin-top: 7px; color: rgba(255,224,163,.65); font-size: .62rem; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; }
 .mission-line { max-width: 520px; margin: 30px auto 0; padding: 9px 24px; border-radius: 16px; background: radial-gradient(ellipse,rgba(5,7,22,.72),rgba(5,7,22,0) 72%); text-align: center; pointer-events: none; } .mission-line h1 { margin: 0 0 5px; font-family: Iowan Old Style,Baskerville,Georgia,serif; font-size: clamp(1.55rem,2.5vw,2.25rem); font-weight: 400; line-height: 1; letter-spacing: -.04em; } .mission-line p { margin: 0; color: #b8c3df; font-size: .86rem; }
+@media (min-width:761px) { .mission-line { max-width: 390px; margin: 16px auto 0; padding: 4px 14px; background: rgba(5,7,22,.2); opacity: .78; } .mission-line h1 { font-size: clamp(1.25rem,1.8vw,1.65rem); } .mission-line p { font-size: .74rem; line-height: 1.3; } .navigation-dock { padding-block: 18px 20px; gap: 12px; } .guess-form label { margin-bottom: 6px; font-size: .94rem; } .input-row input,.primary-button { min-height: 58px; } }
 .galaxy-hint { position: absolute; left: 50%; bottom: 177px; display: flex; align-items: center; gap: 9px; color: rgba(183,198,231,.55); font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; transform: translateX(-50%); } .galaxy-hint i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
 .route-readout { position: absolute; right: 24px; bottom: 22px; left: 24px; display: grid; grid-template-columns: minmax(0,1fr) minmax(220px,.34fr); align-items: end; gap: 28px; }
 .route-track { display: flex; align-items: center; gap: 0; min-width: 0; overflow-x: auto; padding: 12px 4px 8px; scrollbar-width: none; } .route-track::-webkit-scrollbar { display: none; }
@@ -97,3 +99,32 @@ body.tania-mode .navigation-dock { background: linear-gradient(105deg,rgba(39,12
 @media (max-width:480px) { .site-header { min-height: 46px; align-items: flex-start; } .brand { padding-top: 8px; font-size: .92rem; } .header-actions { gap: 10px; } .mode-toggle button { padding-inline: 9px; font-size: .66rem; } .text-button { display: none; } .galaxy-stage { min-height: 535px; } .puzzle-meta { width: 100%; justify-content: space-between; } .destination-lockup { padding-top: 22px; } .endpoint-label { font-size: .56rem; } .mission-line { margin-top: 34px; } .mission-line h1 { font-size: 1.7rem; } .mission-line p { font-size: .78rem; } .galaxy-hint { display: none; } .form-foot { display: block; } .moves-left { display: block; margin-top: 5px; } .route-node { min-width: 64px; } .route-node small { font-size: .51rem; } .route-node strong { font-size: .67rem; } }
 @media (max-width:480px) { .similarity-scale { grid-template-columns: 1fr 1fr; } .similarity-scale i { grid-column: 1/-1; grid-row: 2; margin-bottom: 17px; } .similarity-scale span:nth-of-type(3),.similarity-scale span:nth-of-type(4) { grid-row: 3; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+
+/* Give the sky its own space, separate from headings and controls. */
+.galaxy-stage { display: grid; grid-template-rows: auto auto minmax(180px,1fr) auto; height: clamp(500px,60svh,700px); min-height: 0; }
+.galaxy-stage::after { display: none; }
+.destination-lockup { padding: 16px 24px 0; }
+.destination-lockup strong { padding: 0; line-height: 1.18; letter-spacing: -.04em; }
+.endpoint-end strong { text-align: right; }
+.constellation-viewport { position: relative; min-height: 0; overflow: hidden; isolation: isolate; }
+#progress-galaxy { touch-action: none; }
+.galaxy-hint { bottom: 7px; font-size: .59rem; display: flex; white-space: nowrap; pointer-events: none; }
+.route-readout { position: relative; inset: auto; gap: 16px; padding: 0 24px 14px; }
+.navigation-dock { gap: 12px; padding: 16px 24px; }
+.mission-line { order: 0; max-width: none; margin: 0; padding: 0; border-radius: 0; background: none; text-align: left; opacity: 1; }
+.mission-line h1 { margin: 0 0 3px; font-size: 1rem; line-height: 1.2; letter-spacing: -.025em; }
+.mission-line p { font-size: .74rem; line-height: 1.4; }
+.guess-form { order: 1; }
+.tania-rule,.crossing-ready { order: 2; }
+.play-actions { order: 3; }
+.guess-form label { margin-bottom: 6px; font-size: .94rem; }
+.input-row input,.input-row .primary-button { min-height: 56px; }
+@media (max-width:760px) {
+  .galaxy-stage { height: 540px; grid-template-rows: auto auto minmax(180px,1fr) auto; }
+  .destination-lockup { padding: 14px 17px 0; }
+  .route-readout { padding: 0 16px 12px; }
+  .navigation-dock { padding: 18px 17px; }
+  .mission-line { margin: 0; }
+  .mission-line h1 { font-size: 1rem; }
+  .mission-line p { font-size: .74rem; }
+}

@@ -14,7 +14,6 @@ import {
 } from "./scoring.mjs?v=7";
 
 const MAX_UNDOS = 3;
-const MAX_GALAXY_YAW = 0.68;
 const PULL_DISPLAY_MIN = -0.05;
 const PULL_DISPLAY_MAX = 0.75;
 const WALKTHROUGH_KEY = "find-the-bridge-walkthrough-v1";
@@ -110,6 +109,9 @@ let galaxyTargetYaw = -0.12;
 let galaxyPitch = -0.08;
 let galaxyTargetPitch = -0.08;
 let galaxyZoom = 1;
+let galaxyTargetZoom = 1;
+let galaxyCamera = null;
+let galaxyPreviousFrame = 0;
 let galaxyDragging = false;
 let galaxyPointer = { x: 0, y: 0 };
 let state = { puzzleIndex: 0, bridges: [], finished: false, finishReady: false, improving: false, undosUsed: 0 };
@@ -172,12 +174,12 @@ function fitEndpointWords() {
   const endpoints = [elements.startWord, elements.endWord];
   if (!lockup || endpoints.some((endpoint) => endpoint.clientWidth === 0)) return;
   let low = 22;
-  let high = Math.min(84, Math.max(40, innerWidth * .055));
+  let high = Math.min(64, Math.max(32, innerWidth * .045));
   let best = low;
   for (let pass = 0; pass < 9; pass += 1) {
     const size = (low + high) / 2;
     lockup.style.setProperty("--endpoint-size", `${size}px`);
-    const fits = endpoints.every((endpoint) => endpoint.scrollWidth <= endpoint.clientWidth + 1);
+    const fits = endpoints.every((endpoint) => endpoint.scrollWidth <= endpoint.clientWidth);
     if (fits) {
       best = size;
       low = size;
@@ -217,7 +219,7 @@ function setGameMode(mode) {
   try { localStorage.setItem(MODE_KEY, mode); }
   catch { /* Mode remains active for this page load. */ }
   renderMode();
-  resetPuzzle(state.puzzleIndex);
+  resetPuzzle(state.puzzleIndex, false);
   setFeedback(mode === "tania"
     ? "Tania mode on. Find a surprising connection you can still explain; obvious pairs are discarded."
     : "Classic mode on. Build the smoothest convincing route toward the destination.", "neutral");
@@ -297,13 +299,13 @@ function semanticPoint(word, routeIndex = 1, routeLength = 3) {
   const semanticProgress = Math.max(0, Math.min(1, (similarity(word, destination) - PULL_DISPLAY_MIN) / (PULL_DISPLAY_MAX - PULL_DISPLAY_MIN)));
   return {
     word,
-    x: -1.18 + semanticProgress * 2.36,
-    y: (.5 - projection[wordIndex * 2 + 1]) * 1.45 + Math.sin(routeIndex * 2.2) * .38,
-    z: ((vectors[vectorOffset + 2] ?? 0) / 127) * 1.05 + Math.cos(routeIndex * 1.7) * .24,
+    x: -2.15 + semanticProgress * 4.3,
+    y: (.5 - projection[wordIndex * 2 + 1]) * 2.2 + Math.sin(routeIndex * 2.2) * .55,
+    z: ((vectors[vectorOffset + 2] ?? 0) / 127) * 1.65 + Math.cos(routeIndex * 1.7) * .36,
   };
 }
 
-function projectGalaxyPoint(point, width, height, yaw = galaxyYaw, pitch = galaxyPitch) {
+function rotateGalaxyPoint(point, yaw = galaxyYaw, pitch = galaxyPitch) {
   const cosYaw = Math.cos(yaw);
   const sinYaw = Math.sin(yaw);
   const cosPitch = Math.cos(pitch);
@@ -312,15 +314,85 @@ function projectGalaxyPoint(point, width, height, yaw = galaxyYaw, pitch = galax
   const yawZ = point.x * sinYaw + point.z * cosYaw;
   const rotatedY = point.y * cosPitch - yawZ * sinPitch;
   const rotatedZ = point.y * sinPitch + yawZ * cosPitch;
-  const perspective = (3.7 / (3.7 + rotatedZ)) * galaxyZoom;
-  const scale = Math.min(width, height) * .29;
+  const perspective = 7 / (7 + rotatedZ);
   return {
     ...point,
-    x: width / 2 + rotatedX * scale * perspective,
-    y: height * .49 + rotatedY * scale * perspective,
+    x: rotatedX * perspective,
+    y: rotatedY * perspective,
     depth: rotatedZ,
     perspective,
   };
+}
+
+function fitGalaxyCamera(points, width, height) {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  return {
+    x: (left + right) / 2,
+    y: (top + bottom) / 2,
+    scale: Math.min(Math.max(60, width - 140) / Math.max(.3, right - left), Math.max(60, height - 100) / Math.max(.7, bottom - top)),
+  };
+}
+
+function projectGalaxyPoint(point, width, height) {
+  const rotated = rotateGalaxyPoint(point);
+  const camera = galaxyCamera || { x: 0, y: 0, scale: Math.min(width / 4, height / 3) };
+  return {
+    ...rotated,
+    x: width / 2 + (rotated.x - camera.x) * camera.scale * galaxyZoom,
+    y: (height - 20) / 2 + (rotated.y - camera.y) * camera.scale * galaxyZoom,
+  };
+}
+
+function galaxyHullArea(points) {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const half = (items) => {
+    const hull = [];
+    for (const point of items) {
+      while (hull.length > 1 && cross(hull.at(-2), hull.at(-1), point) <= 0) hull.pop();
+      hull.push(point);
+    }
+    return hull.slice(0, -1);
+  };
+  const hull = [...half(sorted), ...half([...sorted].reverse())];
+  return Math.abs(hull.reduce((area, point, index) => {
+    const next = hull[(index + 1) % hull.length];
+    return area + point.x * next.y - point.y * next.x;
+  }, 0)) / 2;
+}
+
+function frameGalaxyRoute() {
+  const width = elements.galaxyCanvas.clientWidth;
+  const height = elements.galaxyCanvas.clientHeight;
+  const world = galaxyRoute.map((word, index) => semanticPoint(word, index, galaxyRoute.length));
+  let best = { score: -Infinity, yaw: -.12, pitch: -.08 };
+  if (world.length > 2) {
+    for (let yaw = -1.4; yaw <= 1.4; yaw += .14) {
+      for (let pitch = -1.12; pitch <= 1.12; pitch += .14) {
+        const points = world.map((point) => rotateGalaxyPoint(point, yaw, pitch));
+        if (points[0].x >= points.at(-1).x) continue;
+        const camera = fitGalaxyCamera(points, width, height);
+        let separation = Infinity;
+        for (let i = 0; i < points.length; i += 1) {
+          for (let j = i + 1; j < points.length; j += 1) {
+            separation = Math.min(separation, Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y) * camera.scale);
+          }
+        }
+        const area = galaxyHullArea(points) * camera.scale ** 2;
+        const movement = Math.abs(Math.atan2(Math.sin(yaw - galaxyYaw), Math.cos(yaw - galaxyYaw))) + Math.abs(pitch - galaxyPitch);
+        const score = area + Math.min(70, separation) * height * .35 - movement * width * 2;
+        if (score > best.score) best = { score, yaw, pitch };
+      }
+    }
+  }
+  galaxyTargetYaw = galaxyYaw + Math.atan2(Math.sin(best.yaw - galaxyYaw), Math.cos(best.yaw - galaxyYaw));
+  galaxyTargetPitch = best.pitch;
+  galaxyTargetZoom = 1;
 }
 
 function drawStar(context, x, y, radius, color, glow = 0) {
@@ -339,15 +411,29 @@ function drawStar(context, x, y, radius, color, glow = 0) {
   context.restore();
 }
 
-function galaxyLabel(context, point, word, color, width, offset = 14, below = false) {
+function galaxyLabel(context, point, word, color, width, height, occupied, stars, index) {
   context.save();
-  context.font = "650 13px Inter, ui-sans-serif, sans-serif";
+  context.font = "550 13px Inter, ui-sans-serif, sans-serif";
   const textWidth = context.measureText(word).width;
-  const destinationLabel = offset === "left";
-  const x = Math.max(9, Math.min(width - textWidth - 17, destinationLabel ? point.x - textWidth - 14 : point.x + offset));
-  const y = point.y + (destinationLabel ? -28 : below ? 27 : -9);
-  context.fillStyle = "rgba(4,7,22,.76)";
-  context.fillRect(x - 6, y - 14, textWidth + 12, 21);
+  const candidates = [
+    [14, -14], [14, 26], [-textWidth - 14, -14], [-textWidth - 14, 26],
+    [-textWidth / 2, -26], [-textWidth / 2, 35],
+  ];
+  if (index % 2 === 0) [candidates[0], candidates[1]] = [candidates[1], candidates[0]];
+  const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  let best;
+  candidates.forEach(([dx, dy], rank) => {
+    const x = Math.max(8, Math.min(width - textWidth - 8, point.x + dx));
+    const y = Math.max(20, Math.min(height - 27, point.y + dy));
+    const box = { x: x - 4, y: y - 14, w: textWidth + 8, h: 20 };
+    const score = rank + occupied.reduce((total, other) => total + overlap(box, other) * 10, 0)
+      + stars.reduce((total, star) => total + overlap(box, { x: star.x - 11, y: star.y - 11, w: 22, h: 22 }) * 10, 0);
+    if (!best || score < best.score) best = { x, y, box, score };
+  });
+  const { x, y, box } = best;
+  occupied.push(box);
+  context.fillStyle = "rgba(4,7,22,.5)";
+  context.fillRect(box.x, box.y, box.w, box.h);
   context.fillStyle = color;
   context.fillText(word, x, y);
   context.restore();
@@ -367,8 +453,19 @@ function drawGalaxyFrame(now) {
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, width, height);
 
-  galaxyYaw += (galaxyTargetYaw - galaxyYaw) * .055;
-  galaxyPitch += (galaxyTargetPitch - galaxyPitch) * .055;
+  const elapsed = Math.min(64, galaxyPreviousFrame ? now - galaxyPreviousFrame : 16);
+  galaxyPreviousFrame = now;
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ease = reducedMotion ? 1 : 1 - Math.exp(-elapsed / 180);
+  galaxyYaw += (galaxyTargetYaw - galaxyYaw) * ease;
+  galaxyPitch += (galaxyTargetPitch - galaxyPitch) * ease;
+  galaxyZoom += (galaxyTargetZoom - galaxyZoom) * ease;
+  const world = galaxyRoute.map((word, index) => semanticPoint(word, index, galaxyRoute.length));
+  if (world.length) {
+    const camera = fitGalaxyCamera(world.map((point) => rotateGalaxyPoint(point)), width, height);
+    if (!galaxyCamera) galaxyCamera = camera;
+    else for (const key of ["x", "y", "scale"]) galaxyCamera[key] += (camera[key] - galaxyCamera[key]) * ease;
+  }
   context.fillStyle = "#050716";
   context.fillRect(0, 0, width, height);
   const blueCloud = context.createRadialGradient(width * .23, height * .42, 0, width * .23, height * .42, width * .42);
@@ -391,7 +488,7 @@ function drawGalaxyFrame(now) {
       x: (projection[wordIndex * 2] - .5) * 3.5,
       y: (.5 - projection[wordIndex * 2 + 1]) * 2.35,
       z: ((vectors[vectorOffset + 2] ?? 0) / 127) * 2.3,
-    }, width, height, galaxyYaw * .55, galaxyPitch * .55);
+    }, width, height);
     if (point.x > -5 && point.x < width + 5 && point.y > -5 && point.y < height + 5) backgroundStars.push(point);
   }
   backgroundStars.sort((left, right) => right.depth - left.depth);
@@ -406,11 +503,7 @@ function drawGalaxyFrame(now) {
   context.globalAlpha = 1;
 
   if (galaxyRoute.length >= 2) {
-    const points = galaxyRoute.map((word, index) => projectGalaxyPoint(semanticPoint(word, index, galaxyRoute.length), width, height));
-    points.forEach((point) => {
-      point.x = Math.max(50, Math.min(width - 50, point.x));
-      point.y = Math.max(325, Math.min(height - 142, point.y));
-    });
+    const points = world.map((point) => projectGalaxyPoint(point, width, height));
     const start = points[0];
     const destination = points.at(-1);
 
@@ -428,7 +521,8 @@ function drawGalaxyFrame(now) {
 
     const committed = state.finished ? points : points.slice(0, -1);
     if (committed.length > 1) {
-      const reveal = Math.min(1, (now - galaxyRouteChangedAt) / 620);
+      const progress = reducedMotion ? 1 : Math.min(1, (now - galaxyRouteChangedAt) / 620);
+      const reveal = 1 - (1 - progress) ** 3;
       context.save();
       context.lineCap = "round";
       context.lineJoin = "round";
@@ -465,6 +559,7 @@ function drawGalaxyFrame(now) {
       context.restore();
     }
 
+    const labelBoxes = [];
     points.forEach((point, index) => {
       const isStart = index === 0;
       const isDestination = index === points.length - 1;
@@ -480,7 +575,7 @@ function drawGalaxyFrame(now) {
       context.arc(point.x, point.y, radius + 7 + (index % 2) * 4, 0, Math.PI * 2);
       context.stroke();
       context.restore();
-      galaxyLabel(context, point, galaxyRoute[index], color, width, isDestination ? "left" : 13, !isDestination && !isStart && index % 2 === 0);
+      galaxyLabel(context, point, galaxyRoute[index], color, width, height, labelBoxes, points, index);
     });
   }
   galaxyAnimation = requestAnimationFrame(drawGalaxyFrame);
@@ -492,6 +587,7 @@ function renderGalaxyRoute() {
   if (state.bridges.length !== galaxyLastBridgeCount) {
     galaxyLastBridgeCount = state.bridges.length;
     galaxyRouteChangedAt = performance.now();
+    frameGalaxyRoute();
   }
   if (!galaxyAnimation) galaxyAnimation = requestAnimationFrame(drawGalaxyFrame);
 }
@@ -788,7 +884,7 @@ function revealStrongRoute() {
   elements.strongRouteReveal.hidden = false;
 }
 
-function resetPuzzle(index = state.puzzleIndex) {
+function resetPuzzle(index = state.puzzleIndex, focusInput = true) {
   let nextIndex = index;
   if (nextIndex >= puzzles.length) {
     const previousId = currentPuzzle()?.id;
@@ -808,7 +904,7 @@ function resetPuzzle(index = state.puzzleIndex) {
     : "Each connected word is accepted. We’ll show whether it moves closer, sideways, or on a detour.");
   renderMode();
   renderPuzzle();
-  elements.input.focus();
+  if (focusInput) elements.input.focus({ preventScroll: true });
 }
 
 function selectStep(index, route, steps) {
@@ -987,8 +1083,8 @@ elements.galaxyCanvas.addEventListener("pointerdown", (event) => {
 });
 elements.galaxyCanvas.addEventListener("pointermove", (event) => {
   if (!galaxyDragging) return;
-  galaxyTargetYaw = Math.max(-MAX_GALAXY_YAW, Math.min(MAX_GALAXY_YAW, galaxyTargetYaw + (event.clientX - galaxyPointer.x) * .006));
-  galaxyTargetPitch = Math.max(-.55, Math.min(.55, galaxyTargetPitch + (event.clientY - galaxyPointer.y) * .004));
+  galaxyTargetYaw += (event.clientX - galaxyPointer.x) * .007;
+  galaxyTargetPitch = Math.max(-1.3, Math.min(1.3, galaxyTargetPitch + (event.clientY - galaxyPointer.y) * .007));
   galaxyPointer = { x: event.clientX, y: event.clientY };
 });
 const stopGalaxyDrag = (event) => {
@@ -1000,7 +1096,7 @@ elements.galaxyCanvas.addEventListener("pointerup", stopGalaxyDrag);
 elements.galaxyCanvas.addEventListener("pointercancel", stopGalaxyDrag);
 elements.galaxyCanvas.addEventListener("wheel", (event) => {
   event.preventDefault();
-  galaxyZoom = Math.max(.72, Math.min(1.42, galaxyZoom - event.deltaY * .0007));
+  galaxyTargetZoom = Math.max(.65, Math.min(1.8, galaxyTargetZoom * Math.exp(-event.deltaY * .001)));
 }, { passive: false });
 
 document.addEventListener("keydown", (event) => {
